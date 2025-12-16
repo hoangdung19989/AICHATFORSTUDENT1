@@ -131,13 +131,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
         await supabase.auth.signOut();
+    } catch (error) {
+        console.error("Logout error:", error);
+    } finally {
+        // ALWAYS clear local state to ensure user is logged out visually
         setUser(null);
         setProfile(null);
         setSession(null);
         // Clear local storage for navigation logic
         localStorage.removeItem('nav_history'); 
-    } catch (error) {
-        console.error("Logout error:", error);
     }
   };
 
