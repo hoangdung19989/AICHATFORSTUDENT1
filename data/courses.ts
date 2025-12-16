@@ -52,7 +52,7 @@ const MATH_6_COURSE_DATA: Course = {
           id: 'm6-c1-l1',
           title: 'Bài 1. Tập hợp.',
           type: 'video',
-          videoUrl: 'https://vcos.cloudstorage.com.vn/1-bucket-1111/T%E1%BA%ADp_h%E1%BB%A3p_c%C3%A1c_s%E1%BB%91_t%E1%BB%B1_nhi%C3%AAn.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=atm305057-s3user%2F20251205%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251205T175548Z&X-Amz-Expires=518352&X-Amz-Signature=fded2c999c06332b12254f3459c77de18beb35bee756642d65f77fe9527a2dd1&X-Amz-SignedHeaders=host'
+          videoUrl: 'https://vcos.cloudstorage.com.vn/1-bucket-1111/T%E1%BA%ADp_h%E1%BB%A3p_c%C3%A1c_s%E1%BB%91_t%E1%BB%B1_nhi%C3%AAn.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=atm305057-s3user%2F20251216%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251216T080838Z&X-Amz-Expires=604761&X-Amz-Signature=15e4aca6568dcec9ff5aff0afc35782578b97fdf1295324af73bab33e301cbf5&X-Amz-SignedHeaders=host'
         },
         {
           id: 'm6-c1-l2',
