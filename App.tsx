@@ -282,7 +282,7 @@ const AppContent: React.FC = () => {
   // 1. Loading State (Global)
   if (isLoading) {
     return (
-        <div className="h-screen w-full flex items-center justify-center bg-brand-surface">
+        <div className="h-screen w-full flex items-center justify-center bg-transparent">
             <LoadingSpinner text="Đang tải dữ liệu..." />
         </div>
     );
@@ -322,7 +322,7 @@ const AppContent: React.FC = () => {
   // 3. State: Đã đăng nhập nhưng đang ở Login/AdminLogin View (Đang chờ Redirect)
   if (currentView === 'login' || currentView === 'admin-login') {
       return (
-          <div className="h-screen w-full flex items-center justify-center bg-brand-surface">
+          <div className="h-screen w-full flex items-center justify-center bg-transparent">
               <LoadingSpinner text="Đang vào hệ thống..." />
           </div>
       );
@@ -342,12 +342,12 @@ const AppContent: React.FC = () => {
   const isLectureView = currentView === 'lecture-video';
 
   return (
-    <div className="flex h-screen w-full font-sans bg-[#F8FAFC]">
+    <div className="flex h-screen w-full font-sans bg-transparent">
       {/* Sidebar - Not visible in lecture view to maximize space */}
       {!isLectureView && <Sidebar onOpenAboutModal={() => setIsAboutModalOpen(true)} />}
       
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <main className={`flex-1 overflow-y-auto custom-scrollbar ${isLectureView ? 'p-0' : 'p-6 sm:p-8 lg:p-12'}`}>
+        <main className={`flex-1 overflow-y-auto custom-scrollbar ${isLectureView ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
           <div className={`${isLectureView ? '' : 'max-w-7xl mx-auto'} animate-scale-in`}>
              {renderAuthenticatedView()}
           </div>

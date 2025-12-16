@@ -21,17 +21,18 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ title, description, icon: Ico
     const gradientBg = `bg-gradient-to-br from-${baseColorName}-50 to-white`;
     const iconContainerBg = `bg-${baseColorName}-100`;
     const iconColor = `text-${baseColorName}-600`;
+    const hoverBorderColor = `group-hover:border-${baseColorName}-300`;
 
     return (
         <button
             onClick={onClick}
-            className={`group relative w-full flex flex-col p-6 rounded-3xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-soft bg-white border border-slate-100 overflow-hidden text-left h-full`}
+            className={`group relative w-full flex flex-col p-6 rounded-3xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg bg-white/90 backdrop-blur-sm border-2 border-dashed border-slate-300 hover:border-solid ${hoverBorderColor} overflow-hidden text-left h-full`}
         >
             <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${gradientBg}`} />
             
             <div className="relative z-10 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-4">
-                    <div className={`flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl ${iconContainerBg} group-hover:scale-110 transition-transform duration-300`}>
+                    <div className={`flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl ${iconContainerBg} group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
                         <Icon className={`h-7 w-7 ${iconColor}`} />
                     </div>
                     <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-100">
@@ -47,7 +48,7 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ title, description, icon: Ico
                         {tags.map((tag, idx) => (
                             <span 
                                 key={idx} 
-                                className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 text-slate-500 border border-slate-100 group-hover:bg-white group-hover:border-slate-200"
+                                className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 text-slate-500 border border-slate-200 group-hover:bg-white group-hover:border-slate-300"
                             >
                                 {tag}
                             </span>

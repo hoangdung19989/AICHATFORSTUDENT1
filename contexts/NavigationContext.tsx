@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo } from 'react';
 
 export type View = 
   | 'home' | 'login' | 'admin-login' | 'update-password' | 'personalized-dashboard' | 'self-study'
@@ -34,25 +34,31 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const navigate = useCallback((view: View, params: NavigationParams = {}) => {
     // Prevent pushing the same view consecutively
-    if (currentState.view === view) {
-      setHistory(prev => [...prev.slice(0, -1), { view, params }]);
-      return;
-    }
-    setHistory(prev => [...prev, { view, params }]);
-  }, [currentState.view]);
+    setHistory(prev => {
+        const last = prev[prev.length - 1];
+        if (last.view === view) {
+            // Replace params if view is same
+            return [...prev.slice(0, -1), { view, params }];
+        }
+        return [...prev, { view, params }];
+    });
+  }, []);
 
   const goBack = useCallback(() => {
-    if (history.length > 1) {
-      setHistory(prev => prev.slice(0, -1));
-    }
-  }, [history.length]);
+    setHistory(prev => {
+        if (prev.length > 1) {
+            return prev.slice(0, -1);
+        }
+        return prev;
+    });
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     currentView: currentState.view,
     params: currentState.params,
     navigate,
     goBack,
-  };
+  }), [currentState.view, currentState.params, navigate, goBack]);
 
   return (
     <NavigationContext.Provider value={value}>

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { UserProfile } from '../types/user';
 
@@ -33,8 +33,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .single();
           
           if (error) {
-              // Nếu không lấy được profile, có thể do mạng hoặc chưa tạo xong
-              // Trả về null để UI xử lý (loading hoặc thử lại)
               return null;
           }
           return data as UserProfile;
@@ -121,14 +119,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const value = {
+  // Memoize value to prevent consumers from re-rendering unless data actually changes
+  const value = useMemo(() => ({
     user,
     profile,
     session,
     isLoading,
     signOut,
     refreshProfile
-  };
+  }), [user, profile, session, isLoading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
