@@ -52,10 +52,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
+    // --- SAFETY VALVE ---
+    // Force stop loading after 5 seconds to prevent infinite loop on refresh
+    const safetyTimeout = setTimeout(() => {
+        if (mounted && isLoading) {
+            console.warn("Auth check timed out. Forcing app load.");
+            setIsLoading(false);
+        }
+    }, 5000);
+
     // Hàm khởi tạo
     const initAuth = async () => {
         try {
-            const { data } = await supabase.auth.getSession();
+            // Get session normally
+            const { data, error } = await supabase.auth.getSession();
+            
+            if (error) throw error;
+
             const currentSession = data?.session;
             
             if (!mounted) return;
@@ -71,7 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (error) {
             console.error("Auth init error:", error);
         } finally {
-            if (mounted) setIsLoading(false);
+            if (mounted) {
+                setIsLoading(false);
+                clearTimeout(safetyTimeout); // Clear safety timer if successful
+            }
         }
     };
 
@@ -90,11 +106,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (session?.user) {
           setSession(session);
           setUser(session.user);
-          // Lấy profile mới nhất
-          const p = await fetchProfile(session.user.id);
-          if (mounted) setProfile(p);
+          // Chỉ lấy profile nếu chưa có hoặc user thay đổi, tránh fetch dư thừa
+          if (!profile || profile.id !== session.user.id) {
+              const p = await fetchProfile(session.user.id);
+              if (mounted) setProfile(p);
+          }
       }
       
+      // Ensure loading is false after any auth change event
       if (mounted) setIsLoading(false);
     });
 
@@ -102,6 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
         mounted = false;
+        clearTimeout(safetyTimeout);
         if (subscription?.unsubscribe) {
             subscription.unsubscribe();
         }
@@ -114,6 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         setProfile(null);
         setSession(null);
+        // Clear local storage for navigation logic
+        localStorage.removeItem('nav_history'); 
     } catch (error) {
         console.error("Logout error:", error);
     }

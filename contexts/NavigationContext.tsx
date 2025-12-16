@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
 
 export type View = 
   | 'home' | 'login' | 'admin-login' | 'update-password' | 'personalized-dashboard' | 'self-study'
@@ -28,7 +28,27 @@ interface NavigationContextType {
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [history, setHistory] = useState<NavigationState[]>([{ view: 'login', params: {} }]);
+  // Initialize state from localStorage if available to persist view on refresh
+  const [history, setHistory] = useState<NavigationState[]>(() => {
+      try {
+          const savedHistory = localStorage.getItem('nav_history');
+          if (savedHistory) {
+              return JSON.parse(savedHistory);
+          }
+      } catch (e) {
+          console.warn("Failed to load navigation history", e);
+      }
+      return [{ view: 'login', params: {} }];
+  });
+
+  // Save history to localStorage whenever it changes
+  useEffect(() => {
+      try {
+          localStorage.setItem('nav_history', JSON.stringify(history));
+      } catch (e) {
+          console.error("Failed to save navigation history", e);
+      }
+  }, [history]);
 
   const currentState = history[history.length - 1];
 
