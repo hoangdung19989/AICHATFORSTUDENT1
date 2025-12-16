@@ -9,7 +9,8 @@ import {
     ShieldCheckIcon,
     PaperAirplaneIcon,
     CheckCircleIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    ChatBubbleLeftRightIcon 
 } from '../icons';
 import { useNavigation } from '../../contexts/NavigationContext';
 
@@ -56,6 +57,14 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       } 
   }, []);
 
+  // Reset state when switching methods
+  useEffect(() => {
+      setError(null);
+      setMessage(null);
+      setShowOtpInput(false);
+      setOtp('');
+  }, [authMethod, isLoginView]);
+
   // Validation Helper
   const validateRegistration = () => {
       if (!fullName.trim()) return "Vui lòng nhập họ và tên.";
@@ -68,13 +77,9 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       e.preventDefault();
       if (configError) return;
       
-      // Nếu là đăng ký, validate thông tin cá nhân trước
       if (!isLoginView) {
           const valError = validateRegistration();
-          if (valError) {
-              setError(valError);
-              return;
-          }
+          if (valError) { setError(valError); return; }
       }
 
       setIsSubmitting(true);
@@ -116,33 +121,56 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       }
   };
 
-  // --- PHONE LOGIN (VERIFY OTP) ---
+  // --- GENERAL VERIFY OTP (EMAIL & PHONE) ---
   const handleVerifyOtp = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsSubmitting(true);
       setError(null);
 
-      let formattedPhone = phone.trim();
-      if (formattedPhone.startsWith('0')) formattedPhone = '+84' + formattedPhone.substring(1);
-      else if (!formattedPhone.startsWith('+')) formattedPhone = '+84' + formattedPhone;
-
       try {
-          const { data, error } = await supabase.auth.verifyOtp({
-              phone: formattedPhone,
-              token: otp,
-              type: 'sms'
-          });
+          if (authMethod === 'phone') {
+              // Verify Phone OTP
+              let formattedPhone = phone.trim();
+              if (formattedPhone.startsWith('0')) formattedPhone = '+84' + formattedPhone.substring(1);
+              else if (!formattedPhone.startsWith('+')) formattedPhone = '+84' + formattedPhone;
 
-          if (error) throw error;
+              const { data, error } = await supabase.auth.verifyOtp({
+                  phone: formattedPhone,
+                  token: otp,
+                  type: 'sms'
+              });
+              if (error) throw error;
+              if (data.session) onLoginSuccess();
 
-          if (data.session) {
-              onLoginSuccess();
+          } else {
+              // Verify Email OTP (Signup Verification)
+              const { data, error } = await supabase.auth.verifyOtp({
+                  email: email,
+                  token: otp,
+                  type: 'signup'
+              });
+              if (error) throw error;
+              if (data.session) onLoginSuccess();
           }
+
       } catch (err: any) {
           setError(err.message || "Mã OTP không chính xác hoặc đã hết hạn.");
       } finally {
           setIsSubmitting(false);
       }
+  };
+
+  // --- ZALO LOGIN HANDLER ---
+  const handleZaloLogin = () => {
+      const ZALO_APP_ID = "YOUR_ZALO_APP_ID"; 
+      const REDIRECT_URI = window.location.origin;
+      
+      if (ZALO_APP_ID === "YOUR_ZALO_APP_ID") {
+          alert("Chức năng đang phát triển: Cần cấu hình Zalo App ID trong code.");
+          return;
+      }
+      const zaloAuthUrl = `https://oauth.zaloapp.com/v4/permission?app_id=${ZALO_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${role}`;
+      window.location.href = zaloAuthUrl;
   };
 
   // --- EMAIL AUTH ACTION ---
@@ -156,15 +184,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
     try {
       if (isLoginView) {
-        // Sign In
+        // Sign In (Login)
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-        
         if (authError) throw authError;
-        
         onLoginSuccess();
 
       } else {
-        // Sign Up
+        // Sign Up (Register)
         const valError = validateRegistration();
         if (valError) {
             setError(valError);
@@ -187,18 +213,16 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         if (error) throw error;
 
         if (data.session) {
+            // Auto confirmed (rare case for Supabase defaults)
             onLoginSuccess();
         } else if (data.user) {
-            let msg = `Đăng ký thành công! `;
-            if (role === 'teacher') msg += "Tài khoản Giáo viên sẽ ở trạng thái Chờ duyệt. ";
-            else msg += "Vui lòng kiểm tra email để xác nhận. ";
-            setMessage(msg);
-            setIsLoginView(true);
+            // User created, waiting for verification
+            setMessage("Đăng ký thành công! Mã xác thực đã được gửi vào email của bạn.");
+            setShowOtpInput(true); // Switch to OTP Input Mode
         }
       }
     } catch (err: any) {
         let msg = err.message || 'Đã xảy ra lỗi.';
-        // Dịch lỗi sang Tiếng Việt
         if (msg.includes('Invalid login credentials')) {
              msg = "Email hoặc mật khẩu không chính xác.";
         } else if (msg.includes('Email not confirmed')) {
@@ -266,6 +290,34 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </div>
       );
   };
+
+  const renderOtpForm = () => (
+      <form className="space-y-4" onSubmit={handleVerifyOtp}>
+          <div className="text-center mb-2">
+              <p className="text-sm text-slate-600">
+                  Nhập mã xác thực gửi đến <b>{authMethod === 'email' ? email : phone}</b>
+              </p>
+              <button 
+                  type="button" 
+                  onClick={() => setShowOtpInput(false)} 
+                  className="text-xs text-sky-600 hover:underline"
+              >
+                  Quay lại / Gửi lại
+              </button>
+          </div>
+          <input
+              type="text" required placeholder="Nhập mã OTP (6 số)" maxLength={6}
+              className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-lg tracking-widest focus:border-sky-500 focus:ring-sky-500"
+              value={otp} onChange={(e) => setOtp(e.target.value)}
+          />
+          <button
+              type="submit" disabled={isSubmitting}
+              className="w-full flex justify-center rounded-lg bg-green-600 py-3 px-4 text-sm font-bold text-white hover:bg-green-50 disabled:opacity-50 transition-colors shadow-md"
+          >
+              {isSubmitting ? 'Đang kiểm tra...' : 'Xác thực'}
+          </button>
+      </form>
+  );
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-brand-bg px-4 py-8">
@@ -345,59 +397,63 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
             <div className="p-6 sm:p-8 space-y-6">
                 
-                {/* Tabs: Email vs Phone */}
-                <div className="flex border-b border-slate-200">
-                    <button
-                        className={`flex-1 pb-2 text-sm font-medium transition-colors border-b-2 ${authMethod === 'email' ? 'text-brand-blue border-brand-blue' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
-                        onClick={() => { setAuthMethod('email'); setError(null); setMessage(null); }}
-                    >
-                         Email
-                    </button>
-                    <button
-                        className={`flex-1 pb-2 text-sm font-medium transition-colors border-b-2 ${authMethod === 'phone' ? 'text-brand-blue border-brand-blue' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
-                        onClick={() => { setAuthMethod('phone'); setError(null); setMessage(null); }}
-                    >
-                         Số điện thoại
-                    </button>
-                </div>
-
-                {/* Forms */}
-                {authMethod === 'email' && (
-                    <form className="space-y-4" onSubmit={handleEmailAuthAction}>
-                        {renderRegistrationFields()}
-                        
-                        <div className="space-y-3">
-                            <input
-                                type="email" required placeholder="Địa chỉ email"
-                                className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-sky-500 focus:ring-sky-500"
-                                value={email} onChange={(e) => setEmail(e.target.value)}
-                            />
-                            <input
-                                type="password" required placeholder="Mật khẩu"
-                                className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-sky-500 focus:ring-sky-500"
-                                value={password} onChange={(e) => setPassword(e.target.value)}
-                            />
-                        </div>
-                        {isLoginView && (
-                            <div className="flex justify-end text-sm">
-                                <button type="button" onClick={handlePasswordReset} className="font-medium text-sky-600 hover:text-sky-500" disabled={isSubmitting}>Quên mật khẩu?</button>
-                            </div>
-                        )}
+                {/* Tabs: Email vs Phone (Only show if not verifying OTP) */}
+                {!showOtpInput && (
+                    <div className="flex border-b border-slate-200">
                         <button
-                            type="submit" disabled={isSubmitting}
-                            className={`w-full flex justify-center rounded-lg py-3 px-4 text-sm font-bold text-white transition-colors shadow-md ${
-                                role === 'student' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-purple-600 hover:bg-purple-700'
-                            } disabled:opacity-50`}
+                            className={`flex-1 pb-2 text-sm font-medium transition-colors border-b-2 ${authMethod === 'email' ? 'text-brand-blue border-brand-blue' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                            onClick={() => { setAuthMethod('email'); }}
                         >
-                            {isSubmitting ? 'Đang xử lý...' : (isLoginView ? 'Đăng nhập' : 'Đăng ký')}
+                             Email
                         </button>
-                    </form>
+                        <button
+                            className={`flex-1 pb-2 text-sm font-medium transition-colors border-b-2 ${authMethod === 'phone' ? 'text-brand-blue border-brand-blue' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                            onClick={() => { setAuthMethod('phone'); }}
+                        >
+                             Số điện thoại
+                        </button>
+                    </div>
                 )}
 
-                {authMethod === 'phone' && (
-                    <form className="space-y-4" onSubmit={showOtpInput ? handleVerifyOtp : handleSendOtp}>
-                        {!showOtpInput ? (
-                            <>
+                {/* Forms Logic */}
+                {showOtpInput ? (
+                    renderOtpForm()
+                ) : (
+                    <>
+                        {authMethod === 'email' && (
+                            <form className="space-y-4" onSubmit={handleEmailAuthAction}>
+                                {renderRegistrationFields()}
+                                
+                                <div className="space-y-3">
+                                    <input
+                                        type="email" required placeholder="Địa chỉ email"
+                                        className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-sky-500 focus:ring-sky-500"
+                                        value={email} onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                    <input
+                                        type="password" required placeholder="Mật khẩu"
+                                        className="block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-sky-500 focus:ring-sky-500"
+                                        value={password} onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                </div>
+                                {isLoginView && (
+                                    <div className="flex justify-end text-sm">
+                                        <button type="button" onClick={handlePasswordReset} className="font-medium text-sky-600 hover:text-sky-500" disabled={isSubmitting}>Quên mật khẩu?</button>
+                                    </div>
+                                )}
+                                <button
+                                    type="submit" disabled={isSubmitting}
+                                    className={`w-full flex justify-center rounded-lg py-3 px-4 text-sm font-bold text-white transition-colors shadow-md ${
+                                        role === 'student' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-purple-600 hover:bg-purple-700'
+                                    } disabled:opacity-50`}
+                                >
+                                    {isSubmitting ? 'Đang xử lý...' : (isLoginView ? 'Đăng nhập' : 'Đăng ký')}
+                                </button>
+                            </form>
+                        )}
+
+                        {authMethod === 'phone' && (
+                            <form className="space-y-4" onSubmit={handleSendOtp}>
                                 {renderRegistrationFields()}
                                 <input
                                     type="tel" required placeholder="Số điện thoại (VD: 0912345678)"
@@ -412,42 +468,51 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                                 >
                                     {isSubmitting ? 'Đang gửi...' : <><PaperAirplaneIcon className="h-4 w-4 mr-2" /> Gửi mã OTP</>}
                                 </button>
-                            </>
-                        ) : (
-                            <>
-                                <div className="text-center mb-2">
-                                    <p className="text-sm text-slate-600">Mã gửi đến <b>{phone}</b></p>
-                                    <button type="button" onClick={() => setShowOtpInput(false)} className="text-xs text-sky-600 hover:underline">Đổi số</button>
-                                </div>
-                                <input
-                                    type="text" required placeholder="Nhập mã OTP (6 số)" maxLength={6}
-                                    className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-lg tracking-widest focus:border-sky-500 focus:ring-sky-500"
-                                    value={otp} onChange={(e) => setOtp(e.target.value)}
-                                />
-                                <button
-                                    type="submit" disabled={isSubmitting}
-                                    className="w-full flex justify-center rounded-lg bg-green-600 py-3 px-4 text-sm font-bold text-white hover:bg-green-50 disabled:opacity-50 transition-colors shadow-md"
-                                >
-                                    {isSubmitting ? 'Đang kiểm tra...' : 'Xác thực'}
-                                </button>
-                            </>
+                            </form>
                         )}
-                    </form>
+                    </>
+                )}
+
+                {/* --- Social Login (Zalo) --- */}
+                {!showOtpInput && (
+                    <>
+                        <div className="relative mt-6">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-slate-200"></div>
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="px-2 bg-white text-slate-500">Hoặc</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <button
+                                type="button"
+                                onClick={handleZaloLogin}
+                                className="w-full flex items-center justify-center px-4 py-2.5 border border-blue-200 rounded-lg shadow-sm bg-blue-50 text-sm font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                            >
+                                <span className="bg-blue-600 text-white p-1 rounded mr-2 font-display text-[10px]">Zalo</span>
+                                Đăng nhập bằng Zalo
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {/* Toggle Login/Signup */}
-                <div className="text-center pt-2">
-                    <p className="text-sm text-slate-600">
-                        {isLoginView ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
-                        <button 
-                            type="button" 
-                            onClick={() => { setIsLoginView(!isLoginView); setError(null); setMessage(null); }} 
-                            className={`font-bold ml-1 hover:underline ${role === 'student' ? 'text-sky-600' : 'text-purple-600'}`}
-                        >
-                            {isLoginView ? 'Đăng ký ngay' : 'Đăng nhập'}
-                        </button>
-                    </p>
-                </div>
+                {!showOtpInput && (
+                    <div className="text-center pt-2 mt-4">
+                        <p className="text-sm text-slate-600">
+                            {isLoginView ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
+                            <button 
+                                type="button" 
+                                onClick={() => { setIsLoginView(!isLoginView); setError(null); setMessage(null); }} 
+                                className={`font-bold ml-1 hover:underline ${role === 'student' ? 'text-sky-600' : 'text-purple-600'}`}
+                            >
+                                {isLoginView ? 'Đăng ký ngay' : 'Đăng nhập'}
+                            </button>
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* Error/Success Messages */}
