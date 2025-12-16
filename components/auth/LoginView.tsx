@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { API_KEYS } from '../../config';
@@ -306,7 +305,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </button>
           </div>
           <input
-              type="text" required placeholder="Nhập mã OTP (6 số)" maxLength={6}
+              type="text" required placeholder="Nhập mã OTP (8 số)" maxLength={8}
               className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-lg tracking-widest focus:border-sky-500 focus:ring-sky-500"
               value={otp} onChange={(e) => setOtp(e.target.value)}
           />
