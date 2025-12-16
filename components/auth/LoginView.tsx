@@ -45,6 +45,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   // Config Check State
   const [configError, setConfigError] = useState<string | null>(null);
 
+  // --- ZALO CONFIG ---
+  // Tôi đã điền sẵn mã App ID từ hình ảnh của bạn vào đây:
+  const ZALO_APP_ID = "1243534839555470998"; 
+
   useEffect(() => {
       const url = API_KEYS.SUPABASE_URL;
       const key = API_KEYS.SUPABASE_ANON_KEY;
@@ -55,6 +59,35 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           setConfigError("⚠️ Bạn chưa điền thông tin Supabase vào file 'config.ts'. Hãy mở file đó và dán URL + Key của dự án bạn vào.");
       } 
   }, []);
+
+  // Check for Zalo Callback Code in URL
+  useEffect(() => {
+      const query = new URLSearchParams(window.location.search);
+      const zaloCode = query.get('code');
+      const zaloState = query.get('state'); // We used state to store role
+      const zaloError = query.get('error'); // Check for Zalo specific errors
+
+      if (zaloError) {
+          setError(`Lỗi đăng nhập Zalo: ${zaloError}. Hãy kiểm tra lại "Callback URL" trong trang Zalo Developers.`);
+      } else if (zaloCode) {
+          setIsSubmitting(true);
+          // TRONG THỰC TẾ: Bạn cần gửi `zaloCode` này lên Server (Supabase Edge Function) 
+          // để đổi lấy Access Token và thông tin User từ Zalo API.
+          // Ở đây, vì là Frontend-only demo, ta sẽ giả lập đăng nhập thành công sau 1.5s.
+          
+          console.log("Nhận được Zalo Auth Code:", zaloCode);
+          if (zaloState) setRole(zaloState as UserRole);
+
+          setTimeout(() => {
+              // Xóa code khỏi URL cho đẹp
+              window.history.replaceState({}, document.title, window.location.pathname);
+              
+              // Giả lập thành công (Lưu ý: App thật cần Backend xử lý đoạn này)
+              alert(`[MÔ PHỎNG] Đăng nhập Zalo thành công!\nCode: ${zaloCode.substring(0, 10)}...\n(Cần Backend để xử lý user thật)`);
+              onLoginSuccess();
+          }, 1500);
+      }
+  }, [onLoginSuccess]);
 
   // Reset state when switching methods
   useEffect(() => {
@@ -91,6 +124,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           setIsSubmitting(false);
           return;
       }
+      // Basic Vietnam phone normalization
       if (formattedPhone.startsWith('0')) {
           formattedPhone = '+84' + formattedPhone.substring(1);
       } else if (!formattedPhone.startsWith('+')) {
@@ -161,14 +195,24 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
   // --- ZALO LOGIN HANDLER ---
   const handleZaloLogin = () => {
-      const ZALO_APP_ID = "YOUR_ZALO_APP_ID"; 
-      const REDIRECT_URI = window.location.origin;
+      // 1. Lấy URL hiện tại
+      let redirectUri = window.location.origin;
       
-      if (ZALO_APP_ID === "YOUR_ZALO_APP_ID") {
-          alert("Chức năng đang phát triển: Cần cấu hình Zalo App ID trong code.");
-          return;
+      // 2. Xử lý chuẩn hóa URL: Zalo KHÔNG chấp nhận dấu / ở cuối nếu config không có
+      // Ví dụ: config là 'http://localhost:3000' thì redirectUri phải y hệt
+      if (redirectUri.endsWith('/')) {
+          redirectUri = redirectUri.slice(0, -1);
       }
-      const zaloAuthUrl = `https://oauth.zaloapp.com/v4/permission?app_id=${ZALO_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${role}`;
+
+      console.log("Đang chuyển hướng Zalo với:", {
+          appId: ZALO_APP_ID,
+          redirectUri: redirectUri
+      });
+      
+      // 3. Tạo URL xin quyền
+      const zaloAuthUrl = `https://oauth.zaloapp.com/v4/permission?app_id=${ZALO_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${role}`;
+      
+      // 4. Chuyển hướng
       window.location.href = zaloAuthUrl;
   };
 
@@ -212,7 +256,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         if (error) throw error;
 
         if (data.session) {
-            // Auto confirmed (rare case for Supabase defaults)
+            // Auto confirmed
             onLoginSuccess();
         } else if (data.user) {
             // User created, waiting for verification
@@ -305,7 +349,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </button>
           </div>
           <input
-              type="text" required placeholder="Nhập mã OTP (9 số)" maxLength={9}
+              type="text" required placeholder="Nhập mã OTP (8 số)" maxLength={8}
               className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-lg tracking-widest focus:border-sky-500 focus:ring-sky-500"
               value={otp} onChange={(e) => setOtp(e.target.value)}
           />
@@ -491,7 +535,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                                 className="w-full flex items-center justify-center px-4 py-2.5 border border-blue-200 rounded-lg shadow-sm bg-blue-50 text-sm font-bold text-blue-700 hover:bg-blue-100 transition-colors"
                             >
                                 <span className="bg-blue-600 text-white p-1 rounded mr-2 font-display text-[10px]">Zalo</span>
-                                Đăng nhập bằng Zalo
+                                {isSubmitting && window.location.search.includes('code') ? "Đang xử lý Zalo..." : "Đăng nhập bằng Zalo"}
                             </button>
                         </div>
                     </>
