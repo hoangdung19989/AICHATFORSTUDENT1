@@ -8,8 +8,7 @@ import {
     ShieldCheckIcon,
     PaperAirplaneIcon,
     CheckCircleIcon,
-    ExclamationTriangleIcon,
-    ChatBubbleLeftRightIcon 
+    ExclamationTriangleIcon
 } from '../icons';
 import { useNavigation } from '../../contexts/NavigationContext';
 
@@ -45,10 +44,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   // Config Check State
   const [configError, setConfigError] = useState<string | null>(null);
 
-  // --- ZALO CONFIG ---
-  // Tôi đã điền sẵn mã App ID từ hình ảnh của bạn vào đây:
-  const ZALO_APP_ID = "1243534839555470998"; 
-
   useEffect(() => {
       const url = API_KEYS.SUPABASE_URL;
       const key = API_KEYS.SUPABASE_ANON_KEY;
@@ -59,35 +54,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           setConfigError("⚠️ Bạn chưa điền thông tin Supabase vào file 'config.ts'. Hãy mở file đó và dán URL + Key của dự án bạn vào.");
       } 
   }, []);
-
-  // Check for Zalo Callback Code in URL
-  useEffect(() => {
-      const query = new URLSearchParams(window.location.search);
-      const zaloCode = query.get('code');
-      const zaloState = query.get('state'); // We used state to store role
-      const zaloError = query.get('error'); // Check for Zalo specific errors
-
-      if (zaloError) {
-          setError(`Lỗi đăng nhập Zalo: ${zaloError}. Hãy kiểm tra lại "Callback URL" trong trang Zalo Developers.`);
-      } else if (zaloCode) {
-          setIsSubmitting(true);
-          // TRONG THỰC TẾ: Bạn cần gửi `zaloCode` này lên Server (Supabase Edge Function) 
-          // để đổi lấy Access Token và thông tin User từ Zalo API.
-          // Ở đây, vì là Frontend-only demo, ta sẽ giả lập đăng nhập thành công sau 1.5s.
-          
-          console.log("Nhận được Zalo Auth Code:", zaloCode);
-          if (zaloState) setRole(zaloState as UserRole);
-
-          setTimeout(() => {
-              // Xóa code khỏi URL cho đẹp
-              window.history.replaceState({}, document.title, window.location.pathname);
-              
-              // Giả lập thành công (Lưu ý: App thật cần Backend xử lý đoạn này)
-              alert(`[MÔ PHỎNG] Đăng nhập Zalo thành công!\nCode: ${zaloCode.substring(0, 10)}...\n(Cần Backend để xử lý user thật)`);
-              onLoginSuccess();
-          }, 1500);
-      }
-  }, [onLoginSuccess]);
 
   // Reset state when switching methods
   useEffect(() => {
@@ -191,29 +157,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       } finally {
           setIsSubmitting(false);
       }
-  };
-
-  // --- ZALO LOGIN HANDLER ---
-  const handleZaloLogin = () => {
-      // 1. Lấy URL hiện tại
-      let redirectUri = window.location.origin;
-      
-      // 2. Xử lý chuẩn hóa URL: Zalo KHÔNG chấp nhận dấu / ở cuối nếu config không có
-      // Ví dụ: config là 'http://localhost:3000' thì redirectUri phải y hệt
-      if (redirectUri.endsWith('/')) {
-          redirectUri = redirectUri.slice(0, -1);
-      }
-
-      console.log("Đang chuyển hướng Zalo với:", {
-          appId: ZALO_APP_ID,
-          redirectUri: redirectUri
-      });
-      
-      // 3. Tạo URL xin quyền
-      const zaloAuthUrl = `https://oauth.zaloapp.com/v4/permission?app_id=${ZALO_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${role}`;
-      
-      // 4. Chuyển hướng
-      window.location.href = zaloAuthUrl;
   };
 
   // --- EMAIL AUTH ACTION ---
@@ -516,35 +459,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     </>
                 )}
 
-                {/* --- Social Login (Zalo) --- */}
-                {!showOtpInput && (
-                    <>
-                        <div className="relative mt-6">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-slate-200"></div>
-                            </div>
-                            <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-white text-slate-500">Hoặc</span>
-                            </div>
-                        </div>
-
-                        <div className="mt-4">
-                            <button
-                                type="button"
-                                onClick={handleZaloLogin}
-                                className="w-full flex items-center justify-center px-4 py-2.5 border border-blue-200 rounded-lg shadow-sm bg-blue-50 text-sm font-bold text-blue-700 hover:bg-blue-100 transition-colors"
-                            >
-                                <span className="bg-blue-600 text-white p-1 rounded mr-2 font-display text-[10px]">Zalo</span>
-                                {isSubmitting && window.location.search.includes('code') ? "Đang xử lý Zalo..." : "Đăng nhập bằng Zalo"}
-                            </button>
-                        </div>
-                    </>
-                )}
-
                 {/* Toggle Login/Signup */}
                 {!showOtpInput && (
-                    <div className="text-center pt-2 mt-4">
-                        <p className="text-sm text-slate-600">
+                    <div className="text-center pt-2 mt-4 border-t border-slate-100">
+                        <p className="text-sm text-slate-600 mt-4">
                             {isLoginView ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
                             <button 
                                 type="button" 
