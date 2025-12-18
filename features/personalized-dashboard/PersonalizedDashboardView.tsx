@@ -4,11 +4,19 @@ import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { generatePersonalizedLearningPath } from '../../services/geminiService';
-// FIX: Corrected import path for types
 import type { LearningPath, DailyTask } from '../../types/index';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { CheckCircleIcon, VideoCameraIcon, PencilSquareIcon, RocketLaunchIcon, ClockIcon } from '../../components/icons';
+import { 
+    CheckCircleIcon, 
+    VideoCameraIcon, 
+    PencilSquareIcon, 
+    RocketLaunchIcon, 
+    ClockIcon,
+    ExclamationTriangleIcon,
+    ArrowRightIcon,
+    ChartBarIcon
+} from '../../components/icons';
 
 const PersonalizedDashboard: React.FC = () => {
     const { user } = useAuth();
@@ -18,7 +26,6 @@ const PersonalizedDashboard: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [activeDay, setActiveDay] = useState<number>(1); 
 
-    // Helper to get week dates
     const weekDates = useMemo(() => {
         const dates = [];
         const today = new Date();
@@ -45,8 +52,6 @@ const PersonalizedDashboard: React.FC = () => {
             setError(null);
 
             try {
-                // 1. Fetch RECENT activity (Attempts) - Not just incorrect ones
-                // We want to know what the student is currently studying to build a path around it.
                 const { data: recentAttempts, error: attemptsError } = await supabase
                     .from('question_attempts')
                     .select('question_topics, created_at')
@@ -56,7 +61,6 @@ const PersonalizedDashboard: React.FC = () => {
 
                 if (attemptsError) throw attemptsError;
 
-                // 2. Fetch RECENT Exam Results to determine Grade
                 const { data: examResults, error: examsError } = await supabase
                     .from('exam_results')
                     .select('grade_name, subject_name')
@@ -65,11 +69,8 @@ const PersonalizedDashboard: React.FC = () => {
                     .limit(1)
                     .single();
 
-                // Determine Grade Context (Default to Lớp 6 if unknown, as user requested interest)
                 const detectedGrade = examResults?.grade_name || "Lớp 6";
 
-                // 3. Extract Focus Topics
-                // We prioritize topics from the most recent attempts
                 const uniqueTopics = new Set<string>();
                 (recentAttempts || []).forEach(a => {
                     if (a.question_topics && Array.isArray(a.question_topics)) {
@@ -77,19 +78,16 @@ const PersonalizedDashboard: React.FC = () => {
                     }
                 });
                 
-                const focusTopics = Array.from(uniqueTopics).slice(0, 3); // Top 3 recent topics
+                const focusTopics = Array.from(uniqueTopics).slice(0, 3);
 
                 if (focusTopics.length === 0) {
-                     // If no data, maybe generate a generic path for Grade 6 Math (starting point)
                      setLearningPath(null); 
                      return;
                 }
 
-                // 4. Generate learning path
                 const path = await generatePersonalizedLearningPath(focusTopics, detectedGrade);
                 setLearningPath(path);
 
-                // Set active day based on today (Monday = 1, etc.)
                 const currentDayIndex = (new Date().getDay() || 7);
                 setActiveDay(currentDayIndex);
 
@@ -114,7 +112,7 @@ const PersonalizedDashboard: React.FC = () => {
             <div className="text-center p-8 bg-white rounded-xl shadow-sm">
                 <h2 className="text-xl font-bold text-slate-700">Vui lòng đăng nhập</h2>
                 <p className="text-slate-500 mt-2 mb-4">Bạn cần đăng nhập để AI có thể tạo lộ trình học tập cá nhân hóa.</p>
-                <button onClick={() => navigate('login')} className="bg-sky-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-sky-500 transition-colors">
+                <button onClick={() => navigate('login')} className="bg-brand-primary text-white font-semibold px-6 py-2 rounded-lg hover:bg-brand-primary-dark transition-colors">
                     Đến trang Đăng nhập
                 </button>
             </div>
@@ -127,7 +125,7 @@ const PersonalizedDashboard: React.FC = () => {
                  <Breadcrumb items={[{ label: 'Trang chủ', onClick: () => navigate('home') }, { label: 'Lộ trình của tôi' }]} />
                 <LoadingSpinner 
                     text="AI đang thiết kế hành trình học tập cho bạn..."
-                    subText="Đang phân tích bài học gần nhất để tạo kế hoạch 7 ngày."
+                    subText="Đang phân tích dữ liệu từ các bài tập bạn đã làm để tạo kế hoạch 7 ngày."
                 />
             </div>
         );
@@ -139,18 +137,54 @@ const PersonalizedDashboard: React.FC = () => {
     
     if (!learningPath) {
          return (
-            <div className="text-center p-12 bg-white rounded-xl shadow-sm border border-slate-200">
-                <div className="bg-sky-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <RocketLaunchIcon className="h-12 w-12 text-sky-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-800 mt-4">Bắt đầu hành trình!</h2>
-                <p className="text-slate-500 mt-3 mb-8 max-w-md mx-auto">
-                    AI chưa có đủ dữ liệu về việc học của bạn. Hãy thử làm một bài luyện tập hoặc kiểm tra (ví dụ: Toán Lớp 6) để AI xây dựng kế hoạch cho tuần tới nhé!
-                </p>
-                <div className="flex justify-center gap-4">
-                    <button onClick={() => navigate('self-study')} className="bg-sky-600 text-white font-bold px-8 py-3 rounded-xl hover:bg-sky-500 transition-all hover:-translate-y-1 shadow-md">
-                        Học bài ngay
-                    </button>
+            <div className="container mx-auto max-w-4xl animate-slide-up">
+                <Breadcrumb items={[{ label: 'Trang chủ', onClick: () => navigate('home') }, { label: 'Lộ trình của tôi' }]} />
+                
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                    <div className="bg-indigo-600 p-8 text-white text-center">
+                        <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 rounded-full mb-4 backdrop-blur-sm">
+                            <RocketLaunchIcon className="h-10 w-10 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Chưa có dữ liệu học tập</h2>
+                        <p className="text-indigo-100">Để tạo lộ trình cá nhân hóa, AI cần hiểu trình độ của bạn.</p>
+                    </div>
+                    
+                    <div className="p-8">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 text-center">
+                            <div className="space-y-2">
+                                <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-lg">1</div>
+                                <h4 className="font-bold text-slate-800">Luyện tập</h4>
+                                <p className="text-xs text-slate-500 px-4">Thực hiện tối thiểu 5-10 câu hỏi trong phần Tự luyện.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-lg">2</div>
+                                <h4 className="font-bold text-slate-800">AI Phân tích</h4>
+                                <p className="text-xs text-slate-500 px-4">Hệ thống ghi nhận chủ đề bạn đang quan tâm hoặc còn yếu.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-lg">3</div>
+                                <h4 className="font-bold text-slate-800">Nhận lộ trình</h4>
+                                <p className="text-xs text-slate-500 px-4">Hành trình học tập 7 ngày được tạo ra dành riêng cho bạn.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <button 
+                                onClick={() => navigate('self-practice-subjects')}
+                                className="flex-1 flex items-center justify-center gap-2 p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg transition-all hover:-translate-y-1"
+                            >
+                                <PencilSquareIcon className="h-5 w-5" />
+                                Làm bài Tự luyện ngay
+                            </button>
+                            <button 
+                                onClick={() => navigate('test-subjects')}
+                                className="flex-1 flex items-center justify-center gap-2 p-4 bg-white border-2 border-slate-200 hover:border-indigo-300 text-slate-700 rounded-2xl font-bold transition-all hover:bg-slate-50"
+                            >
+                                <ClockIcon className="h-5 w-5" />
+                                Làm bài Kiểm tra
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -211,6 +245,17 @@ const PersonalizedDashboard: React.FC = () => {
                             })}
                         </div>
                     </div>
+                    
+                    {/* Thêm ghi chú nhỏ bên dưới menu */}
+                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                        <div className="flex items-start gap-3">
+                            <ChartBarIcon className="h-5 w-5 text-indigo-500 mt-0.5" />
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-700">Cách cập nhật lộ trình?</h4>
+                                <p className="text-xs text-slate-500 mt-1">Càng làm nhiều bài tập ở phần <strong>Tự luyện</strong>, AI sẽ càng gợi ý bài học chính xác hơn cho bạn.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Task Details */}
@@ -225,7 +270,6 @@ const PersonalizedDashboard: React.FC = () => {
                             <div className="p-6 space-y-6">
                                 {activeTaskData.tasks.map((task, index) => (
                                     <div key={index} className="flex group relative pl-8 pb-6 last:pb-0 border-l-2 border-slate-200 last:border-transparent">
-                                        {/* Timeline connector */}
                                         <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 ${task.type === 'video' ? 'bg-sky-100 border-sky-500' : 'bg-orange-100 border-orange-500'} z-10`}></div>
                                         
                                         <div className="flex-1 bg-white p-5 rounded-xl border border-slate-200 hover:shadow-md transition-shadow">
@@ -250,7 +294,6 @@ const PersonalizedDashboard: React.FC = () => {
                                             
                                             <button 
                                                 onClick={() => {
-                                                    // Simple navigation logic based on type
                                                     if (task.type === 'video') navigate('lecture-subjects');
                                                     else navigate('self-practice-subjects');
                                                 }}

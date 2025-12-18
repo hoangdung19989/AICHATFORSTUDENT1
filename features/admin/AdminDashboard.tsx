@@ -17,17 +17,18 @@ import {
     ClockIcon,
     ShieldCheckIcon,
     BriefcaseIcon,
-    ArrowRightCircleIcon
+    ArrowRightCircleIcon,
+    EnvelopeIcon
 } from '../../components/icons';
 
 const StatCard: React.FC<{ title: string; value: number; icon: React.ElementType; color: string }> = ({ title, value, icon: Icon, color }) => (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center transition-transform hover:scale-105 duration-200">
-        <div className={`p-4 rounded-lg ${color} bg-opacity-20 mr-4`}>
-            <Icon className={`h-8 w-8 ${color.replace('bg-', 'text-')}`} />
+    <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center transition-all hover:shadow-md duration-200">
+        <div className={`p-3 sm:p-4 rounded-xl ${color} bg-opacity-15 mr-4 flex-shrink-0`}>
+            <Icon className={`h-6 w-6 sm:h-8 sm:w-8 ${color.replace('bg-', 'text-')}`} />
         </div>
-        <div>
-            <p className="text-slate-500 text-sm font-medium">{title}</p>
-            <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+        <div className="min-w-0">
+            <p className="text-slate-500 text-xs sm:text-sm font-bold uppercase tracking-wider truncate">{title}</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800">{value}</h3>
         </div>
     </div>
 );
@@ -41,106 +42,53 @@ const AdminDashboard: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch all users using RPC to bypass RLS loops
     const fetchUsers = useCallback(async () => {
         setIsLoadingData(true);
         setError(null);
         try {
-            // SỬ DỤNG RPC (Remote Procedure Call) THAY VÌ SELECT TRỰC TIẾP
-            // Hàm này (get_all_profiles) được định nghĩa là SECURITY DEFINER trong SQL
-            // Nó giúp bỏ qua các quy tắc RLS phức tạp gây treo ứng dụng.
             const { data, error } = await supabase.rpc('get_all_profiles');
-
             if (error) {
-                console.warn("RPC failed, falling back to table select:", error);
-                // Fallback chỉ dùng khi chưa chạy lệnh SQL tạo hàm
                 const { data: fallbackData, error: fallbackError } = await supabase
                     .from('profiles')
                     .select('*')
                     .order('created_at', { ascending: false });
-                
                 if (fallbackError) throw fallbackError;
                 setUsers(fallbackData as UserProfile[]);
             } else {
                 setUsers(data as UserProfile[]);
             }
         } catch (err: any) {
-            console.error(err);
             setError("Lỗi tải dữ liệu: " + err.message);
         } finally {
             setIsLoadingData(false);
         }
     }, []);
 
-    // Initial Load Logic
     useEffect(() => {
         if (isAuthLoading) return;
-
-        // Check if user is admin
         const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
-
-        if (isAdmin) {
-            fetchUsers();
-        } else {
-            // Not authorized
-            navigate('home');
-        }
+        if (isAdmin) fetchUsers();
+        else navigate('home');
     }, [isAuthLoading, profile, user, navigate, fetchUsers]);
-
-    const isConfirmedAdmin = profile?.role === 'admin' || (!profile && user?.user_metadata?.role === 'admin');
-
-    if (isAuthLoading || !isConfirmedAdmin) {
-        if (!isAuthLoading && !isConfirmedAdmin && user && !profile) {
-             return (
-                <div className="h-full w-full flex flex-col items-center justify-center space-y-4">
-                     <LoadingSpinner text="Đang đồng bộ quyền quản trị..." subText="Vui lòng đợi..." />
-                </div>
-             );
-        }
-        return (
-            <div className="h-full w-full flex items-center justify-center">
-                <LoadingSpinner text="Đang xác thực..." />
-            </div>
-        );
-    }
 
     const handleUpdateStatus = async (userId: string, newStatus: 'active' | 'blocked') => {
         try {
-            // Optimistic update
             setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
             const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', userId);
-            if (error) { 
-                fetchUsers(); // Revert on error
-                throw error; 
-            }
+            if (error) { fetchUsers(); throw error; }
         } catch (err: any) { alert(`Lỗi cập nhật: ${err.message}`); }
     };
 
     const handleUpdateRole = async (userId: string, newRole: 'student' | 'teacher' | 'admin') => {
-        const confirmMsg = newRole === 'admin' 
-            ? "CẢNH BÁO: Bạn sắp cấp quyền QUẢN TRỊ VIÊN cho tài khoản này. Họ sẽ có toàn quyền kiểm soát hệ thống."
-            : `Đổi vai trò người dùng này thành ${newRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}?`;
-
-        if (!window.confirm(confirmMsg)) return;
-
+        if (!window.confirm(`Đổi vai trò người dùng này thành ${newRole}?`)) return;
         try {
-            // Optimistic update
             setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-
-            const { error: rpcError } = await supabase.rpc('update_user_role', {
-                target_user_id: userId,
-                new_role: newRole
-            });
-
+            const { error: rpcError } = await supabase.rpc('update_user_role', { target_user_id: userId, new_role: newRole });
             if (rpcError) {
-                console.warn("RPC update_user_role error, falling back to direct update:", rpcError);
                 const { error: tableError } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
                 if (tableError) throw tableError;
             }
-        } catch (err: any) { 
-            alert(`Lỗi cập nhật vai trò: ${err.message}`); 
-            fetchUsers(); 
-        }
+        } catch (err: any) { alert(`Lỗi: ${err.message}`); fetchUsers(); }
     };
 
     const filteredUsers = useMemo(() => {
@@ -153,212 +101,221 @@ const AdminDashboard: React.FC = () => {
         });
     }, [users, filterRole, searchQuery]);
 
-    const stats = useMemo(() => {
-        return {
-            total: users.length,
-            teachers: users.filter(u => u.role === 'teacher').length,
-            students: users.filter(u => u.role === 'student').length,
-            admins: users.filter(u => u.role === 'admin').length,
-            pending: users.filter(u => u.status === 'pending').length,
-        };
-    }, [users]);
+    const stats = useMemo(() => ({
+        total: users.length,
+        teachers: users.filter(u => u.role === 'teacher').length,
+        students: users.filter(u => u.role === 'student').length,
+        admins: users.filter(u => u.role === 'admin').length,
+        pending: users.filter(u => u.status === 'pending').length,
+    }), [users]);
+
+    if (isAuthLoading) return <div className="h-full flex items-center justify-center"><LoadingSpinner /></div>;
 
     return (
-        <div className="container mx-auto max-w-6xl pb-10">
+        <div className="container mx-auto max-w-6xl px-2 sm:px-4 pb-24 lg:pb-10">
             <Breadcrumb items={[{ label: 'Trang chủ', onClick: () => navigate('home') }, { label: 'Quản trị hệ thống' }]} />
 
-            <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between">
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-800">Tổng quan Hệ thống</h1>
-                    <p className="text-slate-500 mt-1">
-                        Quản lý người dùng.
-                    </p>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Bảng điều khiển Admin</h1>
+                    <p className="text-slate-500 text-sm">Quản lý người dùng và phê duyệt tài khoản.</p>
                 </div>
-                <div className="mt-4 md:mt-0">
-                    <button 
-                        onClick={fetchUsers}
-                        className="flex items-center px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 shadow-sm transition-colors"
-                    >
-                        <ArrowRightCircleIcon className="h-5 w-5 mr-2" />
-                        Làm mới dữ liệu
-                    </button>
-                </div>
+                <button 
+                    onClick={fetchUsers}
+                    className="flex items-center justify-center px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 shadow-sm transition-all text-sm font-bold"
+                >
+                    <ArrowPathIcon className="h-4 w-4 mr-2" />
+                    Làm mới dữ liệu
+                </button>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard title="Tổng người dùng" value={stats.total} icon={UserGroupIcon} color="bg-blue-500" />
-                <StatCard title="Quản trị viên" value={stats.admins} icon={ShieldCheckIcon} color="bg-red-500" />
+            {/* Stat Cards Grid - Responsive columns */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+                <StatCard title="Tổng số" value={stats.total} icon={UserGroupIcon} color="bg-blue-500" />
+                <StatCard title="Quản trị" value={stats.admins} icon={ShieldCheckIcon} color="bg-red-500" />
                 <StatCard title="Giáo viên" value={stats.teachers} icon={PencilSquareIcon} color="bg-purple-500" />
-                <StatCard title="Chờ xét duyệt" value={stats.pending} icon={ClockIcon} color="bg-amber-500" />
+                <StatCard title="Chờ duyệt" value={stats.pending} icon={ClockIcon} color="bg-amber-500" />
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <h2 className="text-lg font-bold text-slate-800 flex items-center">
-                        Danh sách người dùng
-                        {stats.pending > 0 && filterRole !== 'student' && (
-                             <span className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-600 animate-pulse">
-                                {stats.pending} chờ duyệt
-                             </span>
-                        )}
-                    </h2>
-                    
-                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                        <input 
-                            type="text" 
-                            placeholder="Tìm theo email hoặc tên..." 
-                            className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none min-w-[250px]"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                {/* Header with Search & Filters */}
+                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30">
+                    <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
+                        <h2 className="text-lg font-bold text-slate-800">Danh sách người dùng</h2>
+                        
+                        <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+                            <div className="relative flex-1 sm:min-w-[300px]">
+                                <input 
+                                    type="text" 
+                                    placeholder="Tìm email hoặc tên..." 
+                                    className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 outline-none text-sm"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
 
-                        <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 overflow-x-auto">
-                            {(['all', 'admin', 'teacher', 'student'] as const).map((r) => (
-                                <button
-                                    key={r}
-                                    onClick={() => setFilterRole(r)}
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                                        filterRole === r 
-                                        ? 'bg-white text-slate-800 shadow-sm' 
-                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-                                    }`}
-                                >
-                                    {r === 'all' ? 'Tất cả' : r === 'admin' ? 'Admin' : r === 'teacher' ? 'Giáo viên' : 'Học sinh'}
-                                </button>
-                            ))}
+                            <div className="flex bg-slate-200/50 p-1 rounded-xl overflow-x-auto custom-scrollbar">
+                                {(['all', 'admin', 'teacher', 'student'] as const).map((r) => (
+                                    <button
+                                        key={r}
+                                        onClick={() => setFilterRole(r)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                                            filterRole === r 
+                                            ? 'bg-white text-slate-800 shadow-sm' 
+                                            : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        {r === 'all' ? 'Tất cả' : r === 'admin' ? 'Admin' : r === 'teacher' ? 'GV' : 'HS'}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-4 m-6 rounded-lg border border-red-100">
-                        <p className="font-bold">Đã xảy ra lỗi:</p>
-                        <p>{error}</p>
-                        <div className="mt-4 text-sm text-slate-700 bg-white p-3 rounded border border-slate-200">
-                            <strong>Cách khắc phục:</strong>
-                            <ol className="list-decimal list-inside mt-1 space-y-1">
-                                <li>Mở file <code>README.md</code></li>
-                                <li>Copy đoạn SQL trong mục <strong>"🔥 GIẢI PHÁP CUỐI CÙNG"</strong></li>
-                                <li>Dán và chạy trong <strong>Supabase SQL Editor</strong></li>
-                                <li>Bấm nút "Làm mới dữ liệu" ở trên</li>
-                            </ol>
-                        </div>
-                    </div>
-                )}
 
                 {isLoadingData ? (
-                    <div className="p-12">
-                        <LoadingSpinner text="Đang tải dữ liệu..." />
-                    </div>
+                    <div className="py-20"><LoadingSpinner /></div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người dùng</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Vai trò</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trạng thái</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {filteredUsers.map((u) => (
-                                    <tr key={u.id} className={`transition-colors ${u.status === 'pending' ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center font-bold text-lg ${u.role === 'admin' ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
-                                                    {u.role === 'admin' ? <ShieldCheckIcon className="h-6 w-6" /> : (u.full_name ? u.full_name.charAt(0).toUpperCase() : <UserCircleIcon className="h-6 w-6" />)}
-                                                </div>
-                                                <div className="ml-4">
-                                                    <div className="text-sm font-bold text-slate-800">{u.email}</div>
-                                                    <div className="text-xs text-slate-500">{u.full_name || 'Chưa cập nhật tên'}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center space-x-2">
-                                                {u.role === 'teacher' ? (
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
-                                                        <PencilSquareIcon className="w-3 h-3 mr-1.5" /> Giáo viên
-                                                    </span>
-                                                ) : u.role === 'admin' ? (
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
-                                                        <ShieldCheckIcon className="w-3 h-3 mr-1.5" /> Admin
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-700 border border-sky-200">
-                                                        <AcademicCapIcon className="w-3 h-3 mr-1.5" /> Học sinh
-                                                    </span>
-                                                )}
-                                                
-                                                {/* Role Switcher (Hidden for self) */}
-                                                {u.id !== user?.id && (
-                                                    <div className="group relative ml-2">
-                                                        <button className="text-slate-400 hover:text-brand-blue">
-                                                            <BriefcaseIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <div className="hidden group-hover:block absolute left-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-200 z-10 p-1">
-                                                            <div className="text-[10px] text-slate-400 uppercase font-bold px-2 py-1">Đổi vai trò</div>
-                                                            <button onClick={() => handleUpdateRole(u.id, 'student')} className="block w-full text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100 rounded">Học sinh</button>
-                                                            <button onClick={() => handleUpdateRole(u.id, 'teacher')} className="block w-full text-left px-2 py-1.5 text-xs text-purple-700 hover:bg-purple-50 rounded">Giáo viên</button>
-                                                            <button onClick={() => handleUpdateRole(u.id, 'admin')} className="block w-full text-left px-2 py-1.5 text-xs text-red-700 hover:bg-red-50 rounded font-bold">Admin</button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {u.status === 'active' && <span className="text-xs font-bold text-green-600">Hoạt động</span>}
-                                            {u.status === 'pending' && <span className="text-xs font-bold text-amber-600">Chờ duyệt</span>}
-                                            {u.status === 'blocked' && <span className="text-xs font-bold text-red-600">Đã khóa</span>}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            {/* Không cho phép tự khóa/xóa chính mình */}
-                                            {u.id !== user?.id && (
-                                                <div className="flex justify-end space-x-2">
-                                                    {u.status === 'pending' && (
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(u.id, 'active')}
-                                                            className="flex items-center text-green-700 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold border border-green-200"
-                                                        >
-                                                            <CheckCircleIcon className="w-4 h-4 mr-1" /> Duyệt
-                                                        </button>
-                                                    )}
-                                                    {u.status === 'blocked' ? (
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(u.id, 'active')}
-                                                            className="flex items-center text-sky-700 bg-sky-100 hover:bg-sky-200 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold"
-                                                        >
-                                                            <KeyIcon className="w-4 h-4 mr-1" /> Mở
-                                                        </button>
-                                                    ) : (
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(u.id, 'blocked')}
-                                                            className="flex items-center text-red-700 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold"
-                                                        >
-                                                            <XCircleIcon className="w-4 h-4 mr-1" /> Khóa
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filteredUsers.length === 0 && (
+                    <>
+                        {/* DESKTOP TABLE VIEW */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-50/50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
                                     <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                                            Không tìm thấy người dùng nào phù hợp với bộ lọc.
-                                        </td>
+                                        <th className="px-6 py-4">Người dùng</th>
+                                        <th className="px-6 py-4">Vai trò</th>
+                                        <th className="px-6 py-4">Trạng thái</th>
+                                        <th className="px-6 py-4 text-right">Thao tác</th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredUsers.map((u) => (
+                                        <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center">
+                                                    <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm ${u.role === 'admin' ? 'bg-red-500' : u.role === 'teacher' ? 'bg-purple-500' : 'bg-brand-primary'}`}>
+                                                        {u.full_name ? u.full_name.charAt(0).toUpperCase() : <UserCircleIcon className="h-6 w-6" />}
+                                                    </div>
+                                                    <div className="ml-3 min-w-0">
+                                                        <p className="text-sm font-bold text-slate-800 truncate">{u.full_name || 'N/A'}</p>
+                                                        <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-red-50 text-red-600' : u.role === 'teacher' ? 'bg-purple-50 text-purple-600' : 'bg-sky-50 text-sky-600'}`}>
+                                                    {u.role}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center">
+                                                    <div className={`h-2 w-2 rounded-full mr-2 ${u.status === 'active' ? 'bg-green-500' : u.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+                                                    <span className="text-xs font-medium text-slate-600 capitalize">{u.status}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right space-x-2">
+                                                {u.id !== user?.id && (
+                                                    <>
+                                                        {u.status === 'pending' && (
+                                                            <button onClick={() => handleUpdateStatus(u.id, 'active')} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><CheckCircleIcon className="h-5 w-5" /></button>
+                                                        )}
+                                                        <button onClick={() => handleUpdateStatus(u.id, u.status === 'blocked' ? 'active' : 'blocked')} className={`p-2 rounded-lg ${u.status === 'blocked' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>
+                                                            {u.status === 'blocked' ? <KeyIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* MOBILE CARD VIEW */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {filteredUsers.map((u) => (
+                                <div key={u.id} className="p-4 bg-white hover:bg-slate-50">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex items-center min-w-0">
+                                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${u.role === 'admin' ? 'bg-red-500' : u.role === 'teacher' ? 'bg-purple-500' : 'bg-brand-primary'}`}>
+                                                {u.full_name ? u.full_name.charAt(0).toUpperCase() : <UserCircleIcon className="h-7 w-7" />}
+                                            </div>
+                                            <div className="ml-3 overflow-hidden">
+                                                <p className="text-sm font-bold text-slate-800 truncate">{u.full_name || 'Người dùng mới'}</p>
+                                                <div className="flex items-center text-xs text-slate-400 mt-0.5">
+                                                    <EnvelopeIcon className="h-3 w-3 mr-1 shrink-0" />
+                                                    <span className="truncate">{u.email}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${u.role === 'admin' ? 'bg-red-50 text-red-600' : u.role === 'teacher' ? 'bg-purple-50 text-purple-600' : 'bg-sky-50 text-sky-600'}`}>
+                                                {u.role}
+                                            </span>
+                                            <div className={`text-[10px] font-bold ${u.status === 'active' ? 'text-green-500' : u.status === 'pending' ? 'text-amber-500' : 'text-red-500'}`}>
+                                                ● {u.status}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {u.id !== user?.id && (
+                                        <div className="flex gap-2 mt-4">
+                                            {u.status === 'pending' && (
+                                                <button 
+                                                    onClick={() => handleUpdateStatus(u.id, 'active')}
+                                                    className="flex-1 flex items-center justify-center py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold shadow-sm"
+                                                >
+                                                    <CheckCircleIcon className="h-4 w-4 mr-1.5" /> Phê duyệt
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={() => handleUpdateStatus(u.id, u.status === 'blocked' ? 'active' : 'blocked')}
+                                                className={`flex-1 flex items-center justify-center py-2.5 rounded-xl text-xs font-bold border transition-colors ${
+                                                    u.status === 'blocked' 
+                                                    ? 'bg-sky-50 border-sky-200 text-sky-600' 
+                                                    : 'bg-red-50 border-red-200 text-red-600'
+                                                }`}
+                                            >
+                                                {u.status === 'blocked' ? (
+                                                    <><KeyIcon className="h-4 w-4 mr-1.5" /> Mở khóa</>
+                                                ) : (
+                                                    <><XCircleIcon className="h-4 w-4 mr-1.5" /> Khóa TK</>
+                                                )}
+                                            </button>
+                                            
+                                            {/* Role Switcher Button for Mobile */}
+                                            <button 
+                                                onClick={() => {
+                                                    const nextRole = u.role === 'student' ? 'teacher' : 'student';
+                                                    handleUpdateRole(u.id, nextRole as any);
+                                                }}
+                                                className="flex-1 py-2.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-bold"
+                                            >
+                                                Lên {u.role === 'student' ? 'GV' : 'HS'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {filteredUsers.length === 0 && (
+                            <div className="py-20 text-center text-slate-400 italic text-sm">
+                                Không tìm thấy người dùng nào phù hợp.
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
     );
 };
+
+// Simple ArrowPathIcon if missing from icons.tsx
+const ArrowPathIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+    </svg>
+);
 
 export default AdminDashboard;

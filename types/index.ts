@@ -13,7 +13,8 @@ export interface TeacherExam {
     title: string;
     subject: string;
     grade: string;
-    questions: any[]; // QuizQuestion[]
+    questions: any; // Cấu trúc { questions: QuizQuestion[], essayQuestions: EssayQuestion[] }
     status: 'draft' | 'published';
+    deadline: string; // ISO string
     created_at: string;
 }

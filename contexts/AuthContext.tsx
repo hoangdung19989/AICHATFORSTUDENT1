@@ -3,7 +3,6 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { supabase } from '../services/supabaseClient';
 import type { UserProfile } from '../types/user';
 
-// Define types as any to avoid import errors from @supabase/supabase-js
 type User = any;
 type Session = any;
 
@@ -32,9 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .eq('id', userId)
               .single();
           
-          if (error) {
-              return null;
-          }
+          if (error) return null;
           return data as UserProfile;
       } catch (err) {
           console.error('Exception fetching profile:', err);
@@ -52,32 +49,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    // --- SAFETY VALVE ---
-    // Force stop loading after 5 seconds to prevent infinite loop on refresh
     const safetyTimeout = setTimeout(() => {
         if (mounted && isLoading) {
-            console.warn("Auth check timed out. Forcing app load.");
             setIsLoading(false);
         }
     }, 5000);
 
-    // Hàm khởi tạo
     const initAuth = async () => {
         try {
-            // Get session normally
             const { data, error } = await supabase.auth.getSession();
-            
             if (error) throw error;
-
             const currentSession = data?.session;
-            
             if (!mounted) return;
-
             if (currentSession?.user) {
                 setSession(currentSession);
                 setUser(currentSession.user);
-                
-                // Lấy Profile từ Database
                 const p = await fetchProfile(currentSession.user.id);
                 if (mounted) setProfile(p);
             }
@@ -86,18 +72,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } finally {
             if (mounted) {
                 setIsLoading(false);
-                clearTimeout(safetyTimeout); // Clear safety timer if successful
+                clearTimeout(safetyTimeout);
             }
         }
     };
 
     initAuth();
 
-    // Lắng nghe sự thay đổi trạng thái đăng nhập
-    const { data } = supabase.auth.onAuthStateChange(async (event: string, session: Session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: string, session: Session) => {
       if (!mounted) return;
       
-      // Xử lý sự kiện
       if (event === 'SIGNED_OUT') {
           setSession(null);
           setUser(null);
@@ -106,44 +90,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (session?.user) {
           setSession(session);
           setUser(session.user);
-          // Chỉ lấy profile nếu chưa có hoặc user thay đổi, tránh fetch dư thừa
           if (!profile || profile.id !== session.user.id) {
               const p = await fetchProfile(session.user.id);
               if (mounted) setProfile(p);
           }
       }
-      
-      // Ensure loading is false after any auth change event
       if (mounted) setIsLoading(false);
     });
-
-    const subscription = data?.subscription;
 
     return () => {
         mounted = false;
         clearTimeout(safetyTimeout);
-        if (subscription?.unsubscribe) {
-            subscription.unsubscribe();
+        if (authListener?.subscription) {
+            authListener.subscription.unsubscribe();
         }
     };
   }, []);
 
   const signOut = async () => {
     try {
-        await supabase.auth.signOut();
-    } catch (error) {
-        console.error("Logout error:", error);
-    } finally {
-        // ALWAYS clear local state to ensure user is logged out visually
+        // 1. Xóa trạng thái trong bộ nhớ tạm thời của App
         setUser(null);
         setProfile(null);
         setSession(null);
-        // Clear local storage for navigation logic
-        localStorage.removeItem('nav_history'); 
+        
+        // 2. Chỉ xóa lịch sử điều hướng để khi đăng nhập lại sẽ vào trang chủ sạch sẽ
+        // Chúng ta KHÔNG dùng localStorage.clear() để bảo vệ các dữ liệu khác
+        localStorage.removeItem('nav_history');
+        
+        // 3. Gọi lệnh đăng xuất từ hệ thống Supabase (Xóa Token)
+        await supabase.auth.signOut();
+        
+        // 4. Chuyển hướng về trang chủ/đăng nhập
+        window.location.href = '/'; 
+    } catch (error) {
+        console.error("Logout error:", error);
+        window.location.href = '/';
     }
   };
 
-  // Memoize value to prevent consumers from re-rendering unless data actually changes
   const value = useMemo(() => ({
     user,
     profile,

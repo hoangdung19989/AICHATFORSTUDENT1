@@ -1,3 +1,4 @@
+
 // FIX: Corrected import path for types
 import type { TestGrade, TestType } from '../types/index';
 
@@ -15,5 +16,9 @@ export const TEST_GRADES: TestGrade[] = [
 ];
 
 export const MOCK_EXAM_GRADES: TestGrade[] = [
+    { id: 'grade-6', name: 'Lớp 6' },
+    { id: 'grade-7', name: 'Lớp 7' },
+    { id: 'grade-8', name: 'Lớp 8' },
+    { id: 'grade-9', name: 'Lớp 9' },
     { id: 'entrance-10', name: 'Thi vào lớp 10' }
 ];

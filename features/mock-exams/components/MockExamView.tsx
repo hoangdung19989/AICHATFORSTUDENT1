@@ -1,20 +1,19 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../services/supabaseClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { generateMockExam } from '../../../services/geminiService';
 import { useQuiz } from '../../../hooks/useQuiz';
-// FIX: Corrected import path for types to resolve module error.
 import type { Quiz, MockExamSubject, TestGrade } from '../../../types/index';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
-import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ClockIcon, PencilSquareIcon } from '../../../components/icons';
+import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ClockIcon, PencilSquareIcon, ExclamationTriangleIcon } from '../../../components/icons';
 
 interface MockExamViewProps {
     subject: MockExamSubject;
     grade: TestGrade;
-    initialQuizData: Quiz | null; // NEW PROP
+    initialQuizData: Quiz | null;
     onBack: () => void;
     onBackToSubjects: () => void;
 }
@@ -22,15 +21,19 @@ interface MockExamViewProps {
 const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuizData, onBack, onBackToSubjects }) => {
     const { user } = useAuth();
     const [quizData, setQuizData] = useState<Quiz | null>(initialQuizData);
-    const [isLoading, setIsLoading] = useState(!initialQuizData); // Only load if no initial data
+    const [isLoading, setIsLoading] = useState(!initialQuizData);
     const [error, setError] = useState<string | null>(null);
     const [showResults, setShowResults] = useState(false);
     const [finalScore, setFinalScore] = useState(0);
+    
+    // Anti-cheat states
+    const [violations, setViolations] = useState(0);
+    const [showCheatWarning, setShowCheatWarning] = useState(false);
+    const [isAutoSubmitted, setIsAutoSubmitted] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const fetchExam = useCallback(async () => {
-        // If we already have data (from teacher), don't fetch AI
         if (initialQuizData) return;
-
         setIsLoading(true);
         setError(null);
         setShowResults(false);
@@ -48,214 +51,233 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         fetchExam();
     }, [fetchExam]);
 
-    const handleQuizFinish = useCallback(async (score: number, total: number) => {
+    // Handle results and submission
+    const handleQuizFinish = useCallback(async (score: number, total: number, cheatDetected: boolean = false) => {
         setFinalScore(score);
         setShowResults(true);
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+        }
+        
         if (user) {
             try {
-                const { error: dbError } = await supabase.from('exam_results').insert({
+                await supabase.from('exam_results').insert({
                     user_id: user.id,
                     subject_name: subject.name,
                     grade_name: grade.name,
                     score,
                     total_questions: total,
                     exam_type: 'mock',
+                    metadata: { 
+                        violations: violations + (cheatDetected ? 1 : 0),
+                        is_cheating: cheatDetected || violations >= 1,
+                        auto_submitted: cheatDetected
+                    }
                 });
-                if (dbError) console.error("Failed to save exam result:", dbError.message);
             } catch (err) {
-                 console.error("Exception saving exam result:", err);
+                 console.error("Error saving results:", err);
             }
         }
-    }, [user, subject.name, grade.name]);
-    
-     const {
+    }, [user, subject.name, grade.name, violations]);
+
+    const {
         currentQuestion, currentQuestionIndex, selectedAnswer, isAnswered, 
         timeLeft, isTimerRunning, handleAnswerSelect, 
-        handleNextQuestion, formatTime, progress,
-    } = useQuiz({ quizData, onQuizFinish: handleQuizFinish });
+        handleNextQuestion, formatTime, progress, score
+    } = useQuiz({ quizData, onQuizFinish: (s, t) => handleQuizFinish(s, t) });
+
+    // Anti-cheat Logic
+    useEffect(() => {
+        if (isLoading || showResults || !quizData) return;
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                triggerViolation();
+            }
+        };
+
+        const handleBlur = () => {
+            triggerViolation();
+        };
+
+        const triggerViolation = () => {
+            if (showResults || isAutoSubmitted) return;
+            
+            setViolations(prev => {
+                const next = prev + 1;
+                if (next === 1) {
+                    setShowCheatWarning(true);
+                } else if (next >= 2) {
+                    setIsAutoSubmitted(true);
+                    handleQuizFinish(score, quizData.questions.length, true);
+                }
+                return next;
+            });
+        };
+
+        window.addEventListener('blur', handleBlur);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('blur', handleBlur);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [isLoading, showResults, quizData, score, handleQuizFinish, isAutoSubmitted]);
+
+    const enterFullscreen = () => {
+        if (containerRef.current) {
+            containerRef.current.requestFullscreen().catch(err => {
+                console.warn(`Fullscreen error: ${err.message}`);
+            });
+        }
+    };
 
     const handleRetake = () => {
-        // If it was a teacher exam, just reset UI (useQuiz handles internal reset when data changes, but here data is same)
-        // Ideally, we should remount or reset quiz state. 
-        // For simplicity, we just reload the fetch or re-use initial data.
-        window.location.reload(); // Simple reload for now to reset everything cleanly
+        window.location.reload();
     };
 
-    // Helper to clean option text
-    const cleanOptionText = (text: string) => {
-        return text.replace(/^[A-D]\.\s*/, '').replace(/^\d+\.\s*/, '');
-    };
-    
     if (isLoading) {
         return (
-            <div>
-                <Breadcrumb items={[
-                    { label: 'Thi thử', onClick: onBackToSubjects },
-                    { label: subject.name, onClick: onBack },
-                    { label: grade.name }
-                ]} />
-                <LoadingSpinner text="AI đang tạo đề thi thử..." subText="Đề thi thử có thể mất nhiều thời gian hơn để tạo. Vui lòng kiên nhẫn." color="amber"/>
-            </div>
-        );
-    }
-    
-    if (error) {
-        return (
-             <div className="text-center p-8 bg-white rounded-lg shadow-sm">
-                <h3 className="text-xl font-bold text-red-600">Lỗi tạo đề thi thử</h3>
-                <p className="text-slate-600 my-4">{error}</p>
-                <button onClick={fetchExam} className="bg-sky-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-sky-500">Thử lại</button>
+            <div className="container mx-auto max-w-4xl">
+                <Breadcrumb items={[{ label: 'Thi thử', onClick: onBackToSubjects }, { label: subject.name, onClick: onBack }, { label: grade.name }]} />
+                <LoadingSpinner text="Đang chuẩn bị đề thi..." subText="Vui lòng không thoát trình duyệt." />
             </div>
         );
     }
 
     if (showResults && quizData) {
-        return <TestResultsView score={finalScore} totalQuestions={quizData.questions.length} onRetake={handleRetake} onBackToSubjects={onBackToSubjects} />;
+        return (
+            <div className="container mx-auto max-w-4xl">
+                {isAutoSubmitted && (
+                    <div className="mb-6 bg-red-600 text-white p-6 rounded-2xl shadow-lg flex items-center animate-bounce">
+                        <ExclamationTriangleIcon className="h-10 w-10 mr-4" />
+                        <div>
+                            <h3 className="text-xl font-bold">BÀI LÀM BỊ KHÓA TỰ ĐỘNG!</h3>
+                            <p>Phát hiện hành vi rời khỏi màn hình thi lần thứ 2. Kết quả đã được gửi về hệ thống.</p>
+                        </div>
+                    </div>
+                )}
+                <TestResultsView score={finalScore} totalQuestions={quizData.questions.length} onRetake={handleRetake} onBackToSubjects={onBackToSubjects} />
+            </div>
+        );
     }
 
-    if (!quizData || !currentQuestion) {
-        return <p>Không có dữ liệu bài thi.</p>;
-    }
-
-    const isUserCorrect = selectedAnswer === currentQuestion.correctAnswer;
+    if (!quizData || !currentQuestion) return <p>Không có dữ liệu.</p>;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 py-6">
-             <Breadcrumb items={[
-                 { label: 'Thi thử', onClick: onBackToSubjects },
-                 { label: subject.name, onClick: onBack },
-                 { label: grade.name }
-             ]} />
+        <div ref={containerRef} className="max-w-4xl mx-auto px-4 py-6 bg-slate-50 min-h-screen relative overflow-y-auto">
+            {/* Fullscreen Trigger Overlay for First Click */}
+            {!document.fullscreenElement && !showResults && (
+                <div className="fixed inset-0 z-[100] bg-slate-900/90 flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-md">
+                    <ExclamationTriangleIcon className="h-20 w-20 text-yellow-500 mb-6" />
+                    <h2 className="text-3xl font-bold mb-4">Chế độ Thi nghiêm túc</h2>
+                    <p className="text-lg text-slate-300 max-w-md mb-8">
+                        Để bắt đầu, bạn phải chuyển sang chế độ Toàn màn hình. Hệ thống sẽ tự động nộp bài nếu bạn thoát ra hoặc chuyển sang tab khác.
+                    </p>
+                    <button 
+                        onClick={enterFullscreen}
+                        className="bg-brand-primary hover:bg-brand-primary-dark text-white px-10 py-4 rounded-2xl font-bold text-xl transition-all shadow-xl hover:scale-105"
+                    >
+                        Bắt đầu làm bài ngay
+                    </button>
+                </div>
+            )}
+
+            {/* Cheat Warning Modal */}
+            {showCheatWarning && !isAutoSubmitted && (
+                <div className="fixed inset-0 z-[110] bg-red-600/95 flex items-center justify-center p-6 backdrop-blur-lg">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+                        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <ExclamationTriangleIcon className="h-12 w-12 text-red-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">CẢNH BÁO GIAN LẬN!</h2>
+                        <p className="text-slate-600 mb-8">
+                            Bạn vừa rời khỏi màn hình thi. Đây là lời cảnh báo <strong>DUY NHẤT</strong>. Nếu vi phạm lần nữa, bài thi sẽ bị thu hồi ngay lập tức.
+                        </p>
+                        <button 
+                            onClick={() => {
+                                setShowCheatWarning(false);
+                                enterFullscreen();
+                            }}
+                            className="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition-colors"
+                        >
+                            Tôi đã hiểu, tiếp tục thi
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="mb-4">
+                <Breadcrumb items={[{ label: 'Thi thử', onClick: onBackToSubjects }, { label: subject.name, onClick: onBack }, { label: grade.name }]} />
+            </div>
             
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-                {/* Header */}
                 <div className="px-6 pt-6 pb-2">
                     <div className="flex justify-between items-center text-sm font-medium mb-4">
-                         <span className="text-slate-500 font-bold">{quizData.title || quizData.sourceSchool}</span>
-                         <div className={`flex items-center px-3 py-1 rounded-full text-white space-x-2 transition-colors duration-300 ${isTimerRunning && timeLeft < 60 ? 'bg-red-500 animate-pulse' : 'bg-slate-800'}`}>
+                         <span className="text-slate-500 font-bold uppercase tracking-wider">{quizData.title || 'ĐỀ THI THỬ'}</span>
+                         <div className={`flex items-center px-4 py-1.5 rounded-full text-white space-x-2 ${timeLeft < 60 ? 'bg-red-500 animate-pulse' : 'bg-slate-800'}`}>
                             <ClockIcon className="h-4 w-4" />
-                            <span className="font-mono text-base">{formatTime(timeLeft)}</span>
+                            <span className="font-mono text-lg">{formatTime(timeLeft)}</span>
                          </div>
                     </div>
-
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 mb-4">
-                        <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 mb-4">
+                        <div className="bg-amber-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
                     </div>
-
-                    <p className="text-slate-500 font-semibold text-sm">Câu {currentQuestionIndex + 1}/{quizData.questions.length}</p>
+                    <div className="flex justify-between items-center">
+                        <p className="text-slate-400 font-bold text-xs uppercase">Câu hỏi {currentQuestionIndex + 1} / {quizData.questions.length}</p>
+                        {violations > 0 && <span className="text-red-500 text-xs font-bold animate-pulse">⚠️ PHÁT HIỆN 1 VI PHẠM</span>}
+                    </div>
                 </div>
 
-                {/* Content */}
-                <div className="p-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-8 leading-snug">{currentQuestion.question}</h2>
-
+                <div className="p-6 sm:p-10">
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-10 leading-snug">{currentQuestion.question}</h2>
                     <div className="space-y-4">
                         {currentQuestion.options.map((option, index) => {
                             const isCorrect = option === currentQuestion.correctAnswer;
                             const isSelected = option === selectedAnswer;
                             const optionLabel = String.fromCharCode(65 + index);
-                            const optionText = cleanOptionText(option);
-
-                            let buttonClass = 'border-slate-300 bg-white hover:border-sky-400 hover:bg-sky-50';
-                            let textClass = 'text-slate-700';
-                            let labelClass = 'text-slate-500';
-
+                            let buttonClass = 'border-slate-200 bg-white hover:border-brand-primary hover:bg-slate-50';
                             if (isAnswered) {
-                                if (isCorrect) {
-                                    buttonClass = 'bg-green-50 border-green-500 ring-1 ring-green-500';
-                                    textClass = 'text-green-900 font-medium';
-                                    labelClass = 'text-green-700 font-bold';
-                                } else if (isSelected) {
-                                    buttonClass = 'bg-red-50 border-red-500 ring-1 ring-red-500';
-                                    textClass = 'text-red-900 font-medium';
-                                    labelClass = 'text-red-700 font-bold';
-                                } else {
-                                    buttonClass = 'border-slate-200 bg-slate-50 opacity-60';
-                                    textClass = 'text-slate-500';
-                                }
+                                if (isCorrect) buttonClass = 'bg-green-50 border-green-500 ring-2 ring-green-200';
+                                else if (isSelected) buttonClass = 'bg-red-50 border-red-500 ring-2 ring-red-200';
+                                else buttonClass = 'opacity-50 grayscale border-slate-100';
                             }
-
                             return (
                                  <button
-                                    key={index}
-                                    onClick={() => handleAnswerSelect(option)}
-                                    disabled={isAnswered}
-                                    className={`w-full text-left flex items-start p-4 rounded-xl border transition-all duration-200 group ${buttonClass}`}
+                                    key={index} onClick={() => handleAnswerSelect(option)} disabled={isAnswered}
+                                    className={`w-full text-left flex items-start p-5 rounded-2xl border-2 transition-all duration-200 ${buttonClass}`}
                                 >
-                                    <span className={`text-lg font-bold mr-4 flex-shrink-0 leading-tight ${labelClass} ${!isAnswered && 'group-hover:text-brand-blue'}`}>
-                                        {optionLabel}.
-                                    </span>
-                                    <span className={`text-lg leading-tight ${textClass}`}>
-                                        {optionText}
-                                    </span>
-                                    {isAnswered && isCorrect && <CheckCircleIcon className="h-6 w-6 ml-auto flex-shrink-0 text-green-600" />}
-                                    {isAnswered && isSelected && !isCorrect && <XCircleIcon className="h-6 w-6 ml-auto flex-shrink-0 text-red-600" />}
+                                    <span className={`text-lg font-black mr-4 ${isAnswered && isCorrect ? 'text-green-600' : 'text-slate-400'}`}>{optionLabel}.</span>
+                                    <span className="text-lg text-slate-700">{option}</span>
                                 </button>
                             );
                         })}
                     </div>
-                
-                    {isAnswered && (
-                        <div className={`mt-8 p-5 rounded-xl border animate-slide-in-bottom ${
-                            isUserCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-                        }`}>
-                            <h4 className={`font-bold mb-2 flex items-center ${
-                                isUserCorrect ? 'text-green-800' : 'text-red-800'
-                            }`}>
-                                {isUserCorrect ? (
-                                    <CheckCircleIcon className="h-5 w-5 mr-2 text-green-600" />
-                                ) : (
-                                    <XCircleIcon className="h-5 w-5 mr-2 text-red-600" />
-                                )}
-                                Giải thích
-                            </h4>
-                            <p className={`${isUserCorrect ? 'text-green-700' : 'text-red-700'} leading-relaxed`}>
-                                {currentQuestion.explanation}
-                            </p>
-                        </div>
-                    )}
                 </div>
 
-                {/* Footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <div className="px-6 py-5 bg-slate-50 border-t border-slate-100 flex justify-end">
                     <button
-                        onClick={handleNextQuestion}
-                        disabled={!isAnswered}
-                        className={`flex items-center px-6 py-3 rounded-lg font-bold transition-all duration-200 ${
-                            !isAnswered 
-                            ? 'bg-slate-200 text-white cursor-not-allowed' 
-                            : 'bg-brand-blue text-white hover:bg-brand-blue-dark shadow-md hover:shadow-lg hover:-translate-y-0.5'
-                        }`}
+                        onClick={handleNextQuestion} disabled={!isAnswered}
+                        className={`flex items-center px-8 py-3 rounded-xl font-bold transition-all ${!isAnswered ? 'bg-slate-200 text-slate-400' : 'bg-brand-primary text-white shadow-lg shadow-indigo-200 hover:-translate-y-0.5'}`}
                     >
-                        {currentQuestionIndex === quizData.questions.length - 1 ? 'Nộp bài Trắc nghiệm' : 'Câu tiếp theo'}
+                        {currentQuestionIndex === quizData.questions.length - 1 ? 'Nộp bài ngay' : 'Câu tiếp theo'}
                         <ArrowRightCircleIcon className="h-5 w-5 ml-2" />
                     </button>
                 </div>
             </div>
-
-            {/* Essay Section (Always visible at the bottom) */}
+            
             {quizData.essayQuestions && quizData.essayQuestions.length > 0 && (
-                <div className="mt-8 bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                    <div className="bg-orange-50 p-4 border-b border-orange-100 flex items-center">
-                        <PencilSquareIcon className="h-6 w-6 text-orange-600 mr-2" />
-                        <h3 className="font-bold text-orange-800 text-lg">PHẦN TỰ LUẬN</h3>
+                <div className="mt-8 bg-white rounded-2xl p-6 border border-amber-200 shadow-sm">
+                    <div className="flex items-center mb-4">
+                        <PencilSquareIcon className="h-6 w-6 text-amber-600 mr-2" />
+                        <h3 className="font-bold text-amber-800">PHẦN TỰ LUẬN (GHI RA GIẤY)</h3>
                     </div>
-                    <div className="p-6">
-                        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-                            <p className="text-blue-800 text-sm">
-                                <strong>Lưu ý:</strong> Hãy đọc đề bài dưới đây và làm bài chi tiết ra giấy kiểm tra. 
-                                Phần này không chấm điểm trên hệ thống nhưng rất quan trọng để rèn luyện kỹ năng trình bày.
-                            </p>
+                    {quizData.essayQuestions.map((q, i) => (
+                        <div key={i} className="mb-4 last:mb-0 p-4 bg-amber-50/50 rounded-xl border border-amber-100">
+                            <p className="font-bold text-slate-700 text-sm mb-1">Câu {i + 1}:</p>
+                            <p className="text-slate-800">{q.question}</p>
                         </div>
-                        <div className="space-y-6">
-                            {quizData.essayQuestions.map((q, idx) => (
-                                <div key={idx} className="pb-4 border-b border-slate-100 last:border-0">
-                                    <p className="font-bold text-slate-800 mb-2">Câu {idx + 1}:</p>
-                                    <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{q.question}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    ))}
                 </div>
             )}
         </div>
