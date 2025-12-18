@@ -7,7 +7,7 @@ import { parseExamDocument } from '../../services/geminiService';
 import type { QuizQuestion, EssayQuestion, TeacherExam } from '../../types/index';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { CloudArrowUpIcon, CheckCircleIcon, DocumentTextIcon, PencilSquareIcon, XMarkIcon, ClockIcon, ChartBarIcon, ArrowPathIcon } from '../../components/icons';
+import { CloudArrowUpIcon, CheckCircleIcon, DocumentTextIcon, PencilSquareIcon, XMarkIcon, ClockIcon, ChartBarIcon, ArrowPathIcon, ExclamationTriangleIcon } from '../../components/icons';
 
 const ALL_SUBJECTS = ["Toán học", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ"];
 
@@ -56,9 +56,23 @@ const ExamManager: React.FC = () => {
         });
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        if (file) {
+            // Kiểm tra nếu là file Word
+            if (file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx')) {
+                alert("Hệ thống AI hiện chưa hỗ trợ đọc trực tiếp file Word (.docx).\n\nVui lòng mở file Word của bạn, chọn 'Lưu dưới dạng' (Save As) -> định dạng PDF, sau đó tải file PDF lên nhé!");
+                e.target.value = ''; // Reset input
+                setUploadedFile(null);
+                return;
+            }
+            setUploadedFile(file);
+        }
+    };
+
     const handleParse = async () => {
         if (!title || !uploadedFile || !deadline) {
-            alert("Vui lòng nhập tên đề, chọn hạn nộp và tải file.");
+            alert("Vui lòng nhập tên đề, chọn hạn nộp và tải file PDF hoặc Ảnh đề thi.");
             return;
         }
         setIsLoading(true);
@@ -187,9 +201,20 @@ const ExamManager: React.FC = () => {
                                     </select>
                                 </div>
                             </div>
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                                <ExclamationTriangleIcon className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                                <p className="text-xs text-amber-800 leading-relaxed">
+                                    <strong>Lưu ý quan trọng:</strong> Hệ thống AI hiện hỗ trợ tốt nhất cho file <strong>PDF</strong> hoặc <strong>Hình ảnh</strong> (Chụp ảnh đề thi). Nếu Thầy/Cô dùng file Word (.docx), hãy xuất sang PDF trước khi tải lên để đảm bảo AI đọc chính xác 100%.
+                                </p>
+                            </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">File đề thi (PDF/Ảnh)</label>
-                                <input type="file" className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" onChange={e => setUploadedFile(e.target.files?.[0] || null)} />
+                                <input 
+                                    type="file" 
+                                    accept=".pdf,image/*"
+                                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" 
+                                    onChange={handleFileChange} 
+                                />
                             </div>
                             <button onClick={handleParse} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold shadow-lg hover:scale-[1.02] transition-all">BƯỚC TIẾP THEO: DUYỆT CÂU HỎI</button>
                         </div>
