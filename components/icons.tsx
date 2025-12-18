@@ -5,6 +5,18 @@ type IconProps = {
   className?: string;
 };
 
+export const Bars3Icon: React.FC<IconProps> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+  </svg>
+);
+
+export const ArrowRightOnRectangleIcon: React.FC<IconProps> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M19 12l-3.75 3.75M19 12l-3.75-3.75m3.75 3.75H9" />
+  </svg>
+);
+
 export const ExclamationTriangleIcon: React.FC<IconProps> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -18,48 +30,12 @@ export const OnLuyenLogo: React.FC<IconProps> = (props) => (
         <stop stopColor="#FFD700" />
         <stop offset="1" stopColor="#FF8C00" />
       </linearGradient>
-      <filter id="inset_shadow" x="-50%" y="-50%" width="200%" height="200%">
-        <feComponentTransfer in="SourceAlpha">
-          <feFuncA type="table" tableValues="1 0" />
-        </feComponentTransfer>
-        <feGaussianBlur stdDeviation="2" />
-        <feOffset dx="1" dy="2" result="offsetblur" />
-        <feFlood floodColor="#995c00" result="color" />
-        <feComposite in2="offsetblur" operator="in" />
-        <feComposite in2="SourceAlpha" operator="in" />
-        <feMerge>
-          <feMergeNode in="SourceGraphic" />
-          <feMergeNode />
-        </feMerge>
-      </filter>
     </defs>
-    
-    {/* Background Squircle */}
     <rect x="5" y="5" width="90" height="90" rx="24" fill="url(#logo_gradient)" stroke="#FFFFFF" strokeWidth="2" />
-    
-    {/* Graduation Cap */}
-    <path 
-      d="M50 25L20 40L50 55L80 40L50 25Z" 
-      fill="#FFFFFF" 
-      stroke="#995c00" 
-      strokeWidth="1"
-      strokeLinejoin="round"
-    />
-    <path 
-      d="M80 40V55C80 55 70 60 50 60C30 60 20 55 20 55V40" 
-      stroke="#FFFFFF" 
-      strokeWidth="4" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      fill="none"
-    />
+    <path d="M50 25L20 40L50 55L80 40L50 25Z" fill="#FFFFFF" stroke="#995c00" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M80 40V55C80 55 70 60 50 60C30 60 20 55 20 55V40" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     <path d="M80 40V65" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round"/>
-    
-    {/* Star / Spark (Representing AI) */}
-    <path 
-      d="M50 65L53 72L60 75L53 78L50 85L47 78L40 75L47 72L50 65Z" 
-      fill="#FFFFFF"
-    />
+    <path d="M50 65L53 72L60 75L53 78L50 85L47 78L40 75L47 72L50 65Z" fill="#FFFFFF" />
   </svg>
 );
 

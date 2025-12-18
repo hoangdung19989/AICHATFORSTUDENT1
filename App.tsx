@@ -1,6 +1,5 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-// FIX: Corrected import path for ChatMessage type
 import type { ChatMessage } from './types/index';
 import Sidebar from './components/layout/Sidebar';
 import HomePage from './components/home/HomePage';
@@ -27,18 +26,78 @@ import { useAuth } from './contexts/AuthContext';
 import { useNavigation, View } from './contexts/NavigationContext';
 import { supabase } from './services/supabaseClient';
 import { getGenericTutorResponse } from './services/geminiService';
-import { RobotIcon, PaperAirplaneIcon, XMarkIcon, SparklesIcon } from './components/icons';
+import { 
+    RobotIcon, 
+    PaperAirplaneIcon, 
+    XMarkIcon, 
+    SparklesIcon, 
+    Bars3Icon, 
+    OnLuyenLogo,
+    HomeIcon,
+    AcademicCapIcon,
+    ChatBubbleBottomCenterTextIcon
+} from './components/icons';
 import LoadingSpinner from './components/common/LoadingSpinner';
+
+// --- Mobile Top Header ---
+const MobileHeader: React.FC<{ onMenuOpen: () => void }> = ({ onMenuOpen }) => {
+    return (
+        <header className="md:hidden bg-white/80 backdrop-blur-lg border-b border-slate-200 px-4 py-3 sticky top-0 z-[50] flex items-center justify-between">
+            <button onClick={onMenuOpen} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <Bars3Icon className="h-6 w-6" />
+            </button>
+            <div className="flex items-center space-x-2">
+                <OnLuyenLogo className="h-7 w-7" />
+                <span className="font-display font-bold text-slate-800 text-lg">OnLuyen</span>
+            </div>
+            <div className="w-10"></div> {/* Spacer for symmetry */}
+        </header>
+    );
+};
+
+// --- Mobile Bottom Navigation ---
+const BottomNav: React.FC = () => {
+    const { currentView, navigate } = useNavigation();
+    const { profile, user } = useAuth();
+    const role = profile?.role || user?.user_metadata?.role;
+
+    if (role === 'teacher' || role === 'admin') return null;
+
+    const navItems = [
+        { label: 'Trang chủ', icon: HomeIcon, view: 'home' as View },
+        { label: 'Tự học', icon: AcademicCapIcon, view: 'self-study' as View },
+        { label: 'Gia sư AI', icon: ChatBubbleBottomCenterTextIcon, view: 'ai-subjects' as View },
+    ];
+
+    return (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 px-6 py-2 pb-safe-area-inset z-40 flex items-center justify-around shadow-[0_-4px_20px_-2px_rgba(0,0,0,0.05)]">
+            {navItems.map((item) => (
+                <button
+                    key={item.label}
+                    onClick={() => navigate(item.view)}
+                    className={`flex flex-col items-center p-2 transition-all ${
+                        currentView === item.view || (item.view === 'self-study' && !['home', 'personalized-dashboard'].includes(currentView))
+                        ? 'text-brand-primary' 
+                        : 'text-slate-400'
+                    }`}
+                >
+                    <item.icon className="h-6 w-6 mb-1" />
+                    <span className="text-[10px] font-bold">{item.label}</span>
+                </button>
+            ))}
+        </nav>
+    );
+};
 
 // --- Floating AI Button Component ---
 const FloatingAIButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   return (
     <button
       onClick={onClick}
-      className="fixed bottom-8 right-8 z-40 h-16 w-16 bg-gradient-to-tr from-brand-primary-dark to-brand-secondary rounded-2xl text-white flex items-center justify-center shadow-lg shadow-indigo-300 hover:scale-110 hover:-rotate-3 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-200 animate-float"
+      className="fixed bottom-20 md:bottom-8 right-6 md:right-8 z-40 h-14 w-14 md:h-16 md:w-16 bg-gradient-to-tr from-brand-primary-dark to-brand-secondary rounded-2xl text-white flex items-center justify-center shadow-lg shadow-indigo-300 hover:scale-110 hover:-rotate-3 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-200 animate-float"
       aria-label="Mở Trợ lý AI"
     >
-      <SparklesIcon className="h-8 w-8 text-white" />
+      <SparklesIcon className="h-7 w-7 md:h-8 md:w-8 text-white" />
     </button>
   );
 };
@@ -97,8 +156,8 @@ const AIChatPopup: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-24 right-8 z-50 w-[90vw] max-w-md h-[600px] flex flex-col bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/50 transition-all duration-300 ease-in-out transform origin-bottom-right animate-scale-in overflow-hidden">
-      <div className="flex items-center p-5 bg-gradient-to-r from-brand-primary to-brand-primary-dark rounded-t-3xl flex-shrink-0">
+    <div className="fixed inset-0 z-50 md:inset-auto md:bottom-24 md:right-8 md:w-[400px] md:h-[600px] flex flex-col bg-white md:bg-white/90 md:backdrop-blur-2xl md:rounded-3xl shadow-2xl md:border md:border-white/50 transition-all duration-300 ease-in-out transform origin-bottom-right animate-scale-in overflow-hidden">
+      <div className="flex items-center p-5 bg-gradient-to-r from-brand-primary to-brand-primary-dark rounded-t-none md:rounded-t-3xl flex-shrink-0">
         <div className="bg-white/20 p-2 rounded-xl">
             <RobotIcon className="h-6 w-6 text-white" />
         </div>
@@ -143,7 +202,7 @@ const AIChatPopup: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-white border-t border-slate-100">
+      <div className="p-4 bg-white border-t border-slate-100 pb-safe-area-inset">
         <form onSubmit={handleSubmit} className="flex items-center space-x-2 relative">
           <input
             ref={inputRef}
@@ -173,60 +232,43 @@ const AppContent: React.FC = () => {
   const { user, profile, isLoading } = useAuth();
   const { currentView, navigate } = useNavigation();
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 1. Listen for Password Recovery and Error Events in URL
+  // Close sidebar on view change
   useEffect(() => {
-    // Check URL Hash for errors (Supabase returns errors in hash)
+      setIsSidebarOpen(false);
+  }, [currentView]);
+
+  // Listen for Password Recovery
+  useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
-        const params = new URLSearchParams(hash.substring(1)); // remove #
+        const params = new URLSearchParams(hash.substring(1));
         const errorDescription = params.get('error_description');
-        const errorCode = params.get('error_code');
-        
         if (errorDescription) {
-            console.error("Supabase Auth Error:", errorDescription);
-            let userMsg = "Đã xảy ra lỗi xác thực.";
-            if (errorCode === 'otp_expired') {
-                userMsg = "Liên kết xác nhận đã hết hạn hoặc không hợp lệ. Vui lòng thử đăng nhập lại hoặc yêu cầu gửi lại mail.";
-            } else {
-                userMsg = errorDescription.replace(/\+/g, ' ');
-            }
-            setAuthError(userMsg);
+            setAuthError(errorDescription.replace(/\+/g, ' '));
             navigate('login');
-            // Clear hash to prevent error showing forever
             window.history.replaceState(null, '', window.location.pathname);
         }
     }
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        navigate('update-password');
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') navigate('update-password');
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // 2. Strict Redirect Logic
+  // Strict Redirect Logic
   useEffect(() => {
-    if (isLoading) return; // Wait until AuthContext is ready
-    
+    if (isLoading) return;
     const isRecovery = window.location.hash.includes('type=recovery');
-
-    // Nếu đã đăng nhập và đang ở trang login/admin-login -> Chuyển hướng
     if (user && (currentView === 'login' || currentView === 'admin-login') && !isRecovery) {
       const isAdmin = profile?.role === 'admin' || user.user_metadata?.role === 'admin';
-      
-      if (isAdmin) {
-          navigate('admin-dashboard');
-      } else {
-          navigate('home');
-      }
+      if (isAdmin) navigate('admin-dashboard');
+      else navigate('home');
     }
-
-    // Nếu CHƯA đăng nhập và KHÔNG ở trang public -> Bắt đăng nhập
     if (!user && currentView !== 'login' && currentView !== 'admin-login' && currentView !== 'update-password') {
        navigate('login');
     }
@@ -237,122 +279,94 @@ const AppContent: React.FC = () => {
       case 'home': return <HomePage />;
       case 'personalized-dashboard': return <PersonalizedDashboard />;
       case 'self-study': return <SelfStudyDashboard />;
-      
-      // Teacher Views
       case 'teacher-dashboard': return <TeacherDashboard />;
       case 'lesson-planner': return <LessonPlanner />;
       case 'test-generator': return <TestGenerator />;
       case 'exam-manager': return <ExamManager />; 
-
-      // Admin View
       case 'admin-dashboard': return <AdminDashboard />;
-
       case 'ai-tutor':
       case 'ai-subjects': return <AITutorFlow />;
-      
       case 'lecture-subjects':
       case 'lecture-grades':
       case 'lecture-video': return <LecturesFlow />;
-
       case 'laboratory-categories':
       case 'laboratory-subcategories':
       case 'laboratory-list':
       case 'laboratory-simulation': return <LaboratoryFlow />;
-
       case 'test-subjects':
       case 'test-grades':
       case 'test-types':
       case 'quiz-view': return <TestsFlow />;
-
       case 'mock-exam-subjects':
       case 'mock-exam-grades':
       case 'mock-exam-view': return <MockExamsFlow />;
-
       case 'self-practice-subjects':
       case 'self-practice-grades':
       case 'self-practice-lessons':
       case 'practice-view': return <SelfPracticeFlow />;
-
       default: return <HomePage />;
     }
   };
 
-  // --- RENDER LOGIC ---
-
-  // 1. Loading State (Global)
   if (isLoading) {
     return (
-        <div className="h-screen w-full flex items-center justify-center bg-transparent">
+        <div className="h-screen w-full flex items-center justify-center bg-brand-bg">
             <LoadingSpinner text="Đang tải dữ liệu..." />
         </div>
     );
   }
 
-  // 2. Unauthenticated State (Strict Login Wall)
   if (!user) {
-    if (currentView === 'update-password') {
-      return <UpdatePasswordView onPasswordUpdated={() => navigate('home')} />;
-    }
-    
-    // Check for Admin Portal
-    if (currentView === 'admin-login') {
-        return <AdminLoginView onLoginSuccess={() => {}} />;
-    }
-
-    // Default to Login View for any other unauthenticated state
+    if (currentView === 'update-password') return <UpdatePasswordView onPasswordUpdated={() => navigate('home')} />;
+    if (currentView === 'admin-login') return <AdminLoginView onLoginSuccess={() => {}} />;
     return (
-        <>
+        <div className="bg-brand-bg min-h-screen">
             {authError && (
-                <div className="fixed top-0 left-0 w-full bg-red-100 border-b border-red-200 text-red-700 px-4 py-3 z-50 text-center shadow-md">
-                    <p className="font-bold">Lỗi xác thực:</p>
-                    <p className="text-sm">{authError}</p>
-                    <button 
-                        onClick={() => setAuthError(null)}
-                        className="absolute top-2 right-2 text-red-500 hover:text-red-800"
-                    >
-                        ✕
-                    </button>
+                <div className="fixed top-0 left-0 w-full bg-red-100 border-b border-red-200 text-red-700 px-4 py-3 z-[100] text-center shadow-md">
+                    <p className="text-sm font-bold">{authError}</p>
+                    <button onClick={() => setAuthError(null)} className="absolute top-2 right-2">✕</button>
                 </div>
             )}
             <LoginView onLoginSuccess={() => {}} />
-        </>
+        </div>
     );
   }
 
-  // 3. State: Đã đăng nhập nhưng đang ở Login/AdminLogin View (Đang chờ Redirect)
   if (currentView === 'login' || currentView === 'admin-login') {
       return (
-          <div className="h-screen w-full flex items-center justify-center bg-transparent">
+          <div className="h-screen w-full flex items-center justify-center bg-brand-bg">
               <LoadingSpinner text="Đang vào hệ thống..." />
           </div>
       );
   }
 
-  // 4. Authenticated State: CHECK FOR PENDING TEACHER (GATEKEEPER)
   const role = profile?.role || user.user_metadata?.role;
-  const defaultStatus = role === 'teacher' ? 'pending' : 'active';
-  const status = profile?.status || defaultStatus;
-  const isTeacherPending = role === 'teacher' && status === 'pending';
+  const status = profile?.status || (role === 'teacher' ? 'pending' : 'active');
+  if (role === 'teacher' && status === 'pending') return <TeacherPendingView />;
 
-  if (isTeacherPending) {
-      return <TeacherPendingView />;
-  }
-
-  // 5. Standard Authenticated State (Full App Layout)
   const isLectureView = currentView === 'lecture-video';
 
   return (
-    <div className="flex h-screen w-full font-sans bg-transparent">
-      {/* Sidebar - Not visible in lecture view to maximize space */}
-      {!isLectureView && <Sidebar onOpenAboutModal={() => setIsAboutModalOpen(true)} />}
+    <div className="flex h-screen w-full font-sans bg-transparent overflow-hidden">
+      {/* Sidebar for Desktop & Mobile Overlay */}
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        onOpenAboutModal={() => setIsAboutModalOpen(true)} 
+      />
       
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <main className={`flex-1 overflow-y-auto custom-scrollbar ${isLectureView ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
+        {/* Mobile Header (Visible only on small screens) */}
+        {!isLectureView && <MobileHeader onMenuOpen={() => setIsSidebarOpen(true)} />}
+
+        <main className={`flex-1 overflow-y-auto custom-scrollbar ${isLectureView ? 'p-0' : 'p-4 sm:p-6 lg:p-8 pb-24 md:pb-8'}`}>
           <div className={`${isLectureView ? '' : 'max-w-7xl mx-auto'} animate-scale-in`}>
              {renderAuthenticatedView()}
           </div>
         </main>
         
+        {/* Navigation Elements */}
+        {!isLectureView && <BottomNav />}
         <FloatingAIButton onClick={() => setIsChatOpen(true)} />
         <AIChatPopup isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
         <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />
