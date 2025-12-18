@@ -6,6 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OnLuyen AI Tutor</title>
     
+    <!-- 1. Cấu hình process.env polyfill ngay lập tức để tránh lỗi Uncaught ReferenceError -->
+    <script>
+      window.process = { 
+        env: { 
+          NODE_ENV: 'development',
+          API_KEY: '' 
+        } 
+      };
+    </script>
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,30 +32,24 @@
             },
             colors: {
               'brand-primary': {
-                DEFAULT: '#6366F1', // Indigo 500
-                dark: '#4F46E5',    // Indigo 600
-                light: '#E0E7FF',   // Indigo 100
+                DEFAULT: '#6366F1',
+                dark: '#4F46E5',
+                light: '#E0E7FF',
               },
               'brand-secondary': {
-                DEFAULT: '#EC4899', // Pink 500
-                light: '#FCE7F3',   // Pink 100
+                DEFAULT: '#EC4899',
+                light: '#FCE7F3',
               },
-              'brand-surface': '#F8FAFC', // Slate 50 (Very light cool gray)
-              'brand-dark': '#1E293B',    // Slate 800
+              'brand-surface': '#F8FAFC',
+              'brand-dark': '#1E293B',
               'brand-blue': {
                  DEFAULT: '#3B82F6',
                  dark: '#2563EB',
               }
             },
-            boxShadow: {
-              'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-              'glow': '0 0 15px rgba(99, 102, 241, 0.3)',
-            },
             animation: {
               'scale-in': 'scale-in-bottom-right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) both',
               'float': 'float 6s ease-in-out infinite',
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'slide-up': 'slide-up 0.5s ease-out forwards',
               'blob': 'blob 10s infinite',
             },
             keyframes: {
@@ -56,10 +60,6 @@
               'float': {
                 '0%, 100%': { transform: 'translateY(0)' },
                 '50%': { transform: 'translateY(-10px)' },
-              },
-              'slide-up': {
-                '0%': { transform: 'translateY(20px)', opacity: '0' },
-                '100%': { transform: 'translateY(0)', opacity: '1' },
               },
               'blob': {
                 '0%': { transform: 'translate(0px, 0px) scale(1)' },
@@ -73,59 +73,46 @@
       }
     </script>
     <script type="importmap">
-    {
-      "imports": {
-        "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.84.0",
-        "react/": "https://aistudiocdn.com/react@^19.2.0/",
-        "react": "https://aistudiocdn.com/react@^19.2.0",
-        "vite": "https://aistudiocdn.com/vite@^7.2.4",
-        "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react/": "https://esm.sh/react@19.0.0/",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "@google/genai": "https://esm.sh/@google/genai@1.30.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.48.1",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
     <style>
       body {
         margin: 0;
         padding: 0;
-        background-color: #F8FAFC; /* Fallback color */
+        background-color: #F8FAFC;
       }
-      /* Custom Scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
-      ::-webkit-scrollbar-track {
-        background: transparent; 
-      }
+      ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb {
         background: #CBD5E1; 
         border-radius: 4px;
       }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94A3B8; 
-      }
-      
-      .animation-delay-2000 {
-        animation-delay: 2s;
-      }
-      .animation-delay-4000 {
-        animation-delay: 4s;
-      }
+      ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+      .animation-delay-2000 { animation-delay: 2s; }
+      .animation-delay-4000 { animation-delay: 4s; }
     </style>
   </head>
   <body class="text-slate-800 antialiased h-screen overflow-hidden relative">
-    
-    <!-- Lively Animated Background -->
     <div class="fixed inset-0 -z-10 w-full h-full overflow-hidden bg-slate-50">
-        <!-- Gradient Blobs -->
         <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
         <div class="absolute top-0 right-1/4 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
         <div class="absolute -bottom-32 left-1/3 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
-        <div class="absolute bottom-0 right-0 w-80 h-80 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
     </div>
-
     <div id="root" class="h-full relative z-0"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

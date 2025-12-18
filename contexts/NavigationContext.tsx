@@ -23,31 +23,42 @@ interface NavigationContextType {
   params: NavigationParams;
   navigate: (view: View, params?: NavigationParams) => void;
   goBack: () => void;
-  resetNavigation: () => void; // Thêm hàm reset
+  resetNavigation: () => void;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [history, setHistory] = useState<NavigationState[]>(() => {
-      try {
-          const savedHistory = localStorage.getItem('nav_history');
-          if (savedHistory) {
-              return JSON.parse(savedHistory);
-          }
-      } catch (e) {
-          console.warn("Failed to load navigation history", e);
-      }
-      return [{ view: 'login', params: {} }];
-  });
+  // Hàm lấy view từ hash URL (ví dụ: #/self-study -> self-study)
+  const getViewFromHash = (): NavigationState => {
+    const hash = window.location.hash.replace('#/', '');
+    if (!hash) return { view: 'login', params: {} };
+    return { view: hash as View, params: {} };
+  };
 
+  const [history, setHistory] = useState<NavigationState[]>([getViewFromHash()]);
+
+  // Đồng bộ hóa URL khi history thay đổi
   useEffect(() => {
-      try {
-          localStorage.setItem('nav_history', JSON.stringify(history));
-      } catch (e) {
-          console.error("Failed to save navigation history", e);
-      }
+    const currentState = history[history.length - 1];
+    if (currentState) {
+      window.location.hash = `/${currentState.view}`;
+    }
   }, [history]);
+
+  // Lắng nghe sự kiện đổi hash (khi nhấn Back/Forward trên trình duyệt)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const newState = getViewFromHash();
+      setHistory(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.view === newState.view) return prev;
+        return [...prev, newState];
+      });
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const currentState = history[history.length - 1] || { view: 'login', params: {} };
 
@@ -71,7 +82,6 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
   }, []);
 
   const resetNavigation = useCallback(() => {
-      localStorage.removeItem('nav_history');
       setHistory([{ view: 'login', params: {} }]);
   }, []);
 
