@@ -6,6 +6,9 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const handleGeminiError = (error: any, context: string): never => {
     console.error(`Gemini Error during ${context}:`, error);
+    if (error.message?.includes('429')) {
+        throw new Error("Hệ thống AI đang bận (Quá giới hạn yêu cầu). Vui lòng đợi khoảng 30 giây và thử lại.");
+    }
     throw new Error(error.message || "Lỗi kết nối AI.");
 };
 
@@ -42,8 +45,9 @@ export const parseExamDocument = async (base64Data: string, mimeType: string): P
         
         Trả về JSON: { "questions": [...], "essayQuestions": [...] }`;
 
+        // Sử dụng mô hình FLASH để có Quota cao hơn, tránh lỗi 429
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview",
+            model: "gemini-3-flash-preview",
             contents: {
                 parts: [
                     { text: promptText },
@@ -94,14 +98,14 @@ export const parseExamDocument = async (base64Data: string, mimeType: string): P
             questions: parsedData.questions || [],
             essayQuestions: parsedData.essayQuestions || []
         } as Quiz;
-    } catch (error) { handleGeminiError(error, "parseExamDocument"); }
+    } catch (error) { return handleGeminiError(error, "parseExamDocument"); }
 };
 
 export const generateQuiz = async (subjectName: string, gradeName: string, testType: TestType): Promise<Quiz> => {
     try {
         const prompt = `Soạn đề ${testType.name} môn ${subjectName} lớp ${gradeName}.`;
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview", contents: prompt,
+            model: "gemini-3-flash-preview", contents: prompt,
             config: { responseMimeType: "application/json" }
         });
         return JSON.parse(response.text || "{}");
@@ -112,7 +116,7 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
     try {
         const prompt = `Soạn đề thi thử lớp ${gradeName} môn ${subjectName}. 30 câu trắc nghiệm, 3 câu tự luận.`;
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview", contents: prompt,
+            model: "gemini-3-flash-preview", contents: prompt,
             config: { responseMimeType: "application/json" }
         });
         return JSON.parse(response.text || "{}");
@@ -145,7 +149,7 @@ export const generateLessonPlan = async (subject: string, grade: string, topic: 
     try {
         const prompt = `Soạn giáo án 5512 môn ${subject} lớp ${grade} bài ${topic}.`;
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview", contents: prompt,
+            model: "gemini-3-flash-preview", contents: prompt,
             config: { responseMimeType: "application/json" }
         });
         return JSON.parse(response.text || "{}");
@@ -156,7 +160,7 @@ export const generateTestFromMatrixDocument = async (subject: string, grade: str
     try {
         const prompt = `Soạn đề thi từ ma trận cho môn ${subject} lớp ${grade}. ${mcCount} câu trắc nghiệm, ${essayCount} tự luận.`;
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview",
+            model: "gemini-3-flash-preview",
             contents: { parts: [{ text: prompt }, { inlineData: { data: base64Data, mimeType: mimeType } }] },
             config: { responseMimeType: "application/json" }
         });
