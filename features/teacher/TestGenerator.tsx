@@ -13,7 +13,7 @@ import {
     EyeIcon,
     ArrowLeftIcon,
     DocumentTextIcon,
-    ExclamationTriangleIcon
+    ArrowPathIcon
 } from '../../components/icons';
 
 const SUBJECTS_LIST = [
@@ -41,13 +41,7 @@ const FileUploadCard: React.FC<{
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            if (file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.xlsx')) {
-                alert("AI chưa hỗ trợ đọc file Word/Excel trực tiếp.\n\nVui lòng chọn 'Save As' -> định dạng PDF cho file ma trận của bạn trước khi tải lên nhé!");
-                e.target.value = '';
-                return;
-            }
-            onUpload(file);
+            onUpload(e.target.files[0]);
         }
     };
 
@@ -126,6 +120,7 @@ const TestGenerator: React.FC = () => {
             reader.readAsDataURL(file);
             reader.onload = () => {
                 const result = reader.result as string;
+                // Remove the "data:*/*;base64," prefix for Gemini
                 const base64 = result.split(',')[1];
                 resolve(base64);
             };
@@ -142,7 +137,7 @@ const TestGenerator: React.FC = () => {
 
         try {
             const base64Data = await fileToBase64(combinedFile.file);
-            const mimeType = combinedFile.file.type || 'application/pdf';
+            const mimeType = combinedFile.file.type || 'application/pdf'; // Default to pdf if unknown, helps Gemini context
 
             const quiz = await generateTestFromMatrixDocument(
                 subject, 
@@ -163,6 +158,7 @@ const TestGenerator: React.FC = () => {
     const handleDownload = () => {
         if (!result) return;
 
+        // Build HTML content for Word
         const header = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' 
                   xmlns:w='urn:schemas-microsoft-com:office:word' 
@@ -285,6 +281,7 @@ const TestGenerator: React.FC = () => {
                         </button>
                     </div>
 
+                    {/* Preview Area */}
                     <div className="mt-12 text-left bg-slate-50 rounded-xl border border-slate-200 p-8 max-h-[500px] overflow-y-auto shadow-inner font-serif">
                         <div className="flex items-center space-x-2 mb-6 border-b border-slate-200 pb-4 font-sans">
                             <EyeIcon className="h-5 w-5 text-slate-400" />
@@ -337,73 +334,139 @@ const TestGenerator: React.FC = () => {
         <div className="container mx-auto max-w-6xl pb-20">
             <Breadcrumb items={[{ label: 'Công cụ giảng dạy', onClick: () => navigate('teacher-dashboard') }, { label: 'Tạo đề kiểm tra' }]} />
 
+            {/* Header Banner */}
             <div className="bg-gradient-to-r from-sky-600 to-brand-blue rounded-2xl p-8 mb-8 text-white shadow-lg relative overflow-hidden">
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold mb-2 flex items-center">
                         <PencilSquareIcon className="h-8 w-8 mr-3 text-brand-yellow" />
                         TẠO ĐỀ KIỂM TRA
                     </h1>
-                    <p className="text-blue-100 text-lg">Tải lên Ma trận & Đặc tả (PDF) - Xuất file Word chuẩn format</p>
+                    <p className="text-blue-100 text-lg">Tải lên Ma trận & Đặc tả (1 file duy nhất) - Xuất file Word chuẩn format</p>
                 </div>
+                {/* Decoration */}
                 <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column: Input Config */}
                 <div className="lg:col-span-2 space-y-8">
+                    
+                    {/* Section 1: General Info */}
                     <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <div className="flex items-center mb-6 border-l-4 border-brand-blue pl-4">
                             <h2 className="text-xl font-bold text-slate-800">1. Thông tin chung</h2>
                         </div>
+                        
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-2">Môn học</label>
-                                <select className="w-full rounded-lg border-slate-300 border px-3 py-2.5 bg-slate-50" value={subject} onChange={(e) => setSubject(e.target.value)}>
+                                <select 
+                                    className="w-full rounded-lg border-slate-300 border px-3 py-2.5 focus:ring-2 focus:ring-brand-blue focus:border-brand-blue bg-slate-50"
+                                    value={subject}
+                                    onChange={(e) => setSubject(e.target.value)}
+                                >
                                     {SUBJECTS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-2">Khối lớp</label>
-                                <select className="w-full rounded-lg border-slate-300 border px-3 py-2.5 bg-slate-50" value={grade} onChange={(e) => setGrade(e.target.value)}>
+                                <select 
+                                    className="w-full rounded-lg border-slate-300 border px-3 py-2.5 focus:ring-2 focus:ring-brand-blue focus:border-brand-blue bg-slate-50"
+                                    value={grade}
+                                    onChange={(e) => setGrade(e.target.value)}
+                                >
                                     {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                                 </select>
                             </div>
                         </div>
                     </section>
 
+                    {/* Section 2: Structure Config */}
                     <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <div className="flex items-center mb-6 border-l-4 border-brand-blue pl-4">
-                            <h2 className="text-xl font-bold text-slate-800">2. Cấu trúc & Tài liệu</h2>
+                            <h2 className="text-xl font-bold text-slate-800">2. Cấu trúc đề thi</h2>
                         </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-2">Số câu Trắc nghiệm</label>
-                                <input type="number" min="0" className="w-full rounded-lg border-slate-300 border px-3 py-2.5" value={mcCount} onChange={(e) => setMcCount(parseInt(e.target.value) || 0)} />
+                                <div className="relative">
+                                    <input 
+                                        type="number" min="0" max="100"
+                                        className="w-full rounded-lg border-slate-300 border px-3 py-2.5 focus:ring-2 focus:ring-brand-blue focus:border-brand-blue text-center font-bold text-lg"
+                                        value={mcCount}
+                                        onChange={(e) => setMcCount(parseInt(e.target.value) || 0)}
+                                    />
+                                    <span className="absolute right-4 top-3 text-slate-400 text-sm">Câu</span>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-2">Số câu Tự luận</label>
-                                <input type="number" min="0" className="w-full rounded-lg border-slate-300 border px-3 py-2.5" value={essayCount} onChange={(e) => setEssayCount(parseInt(e.target.value) || 0)} />
+                                <div className="relative">
+                                    <input 
+                                        type="number" min="0" max="20"
+                                        className="w-full rounded-lg border-slate-300 border px-3 py-2.5 focus:ring-2 focus:ring-brand-blue focus:border-brand-blue text-center font-bold text-lg"
+                                        value={essayCount}
+                                        onChange={(e) => setEssayCount(parseInt(e.target.value) || 0)}
+                                    />
+                                    <span className="absolute right-4 top-3 text-slate-400 text-sm">Câu</span>
+                                </div>
                             </div>
                         </div>
+
                         <div className="h-48">
-                            <FileUploadCard title="Tải Ma trận & Đặc tả (PDF)" description="Chọn file PDF hoặc Ảnh chứa bảng ma trận đề thi của bạn." fileState={combinedFile} onUpload={handleFileUpload} accept=".pdf,image/*" />
+                            <FileUploadCard 
+                                title="Tải lên File Ma trận & Đặc tả" 
+                                description="Hỗ trợ file PDF hoặc Hình ảnh bảng ma trận (Vui lòng xuất Word/Excel sang PDF)."
+                                fileState={combinedFile}
+                                onUpload={handleFileUpload}
+                                accept=".pdf,.png,.jpg,.jpeg"
+                            />
                         </div>
                     </section>
 
-                    <button onClick={handleGenerate} disabled={!combinedFile.file} className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center justify-center ${!combinedFile.file ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-brand-blue hover:bg-brand-blue-dark text-white hover:-translate-y-1'}`}>
-                        <PencilSquareIcon className="h-6 w-6 mr-2" /> TẠO ĐỀ KIỂM TRA NGAY
+                    <button 
+                        onClick={handleGenerate}
+                        disabled={!combinedFile.file}
+                        className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center justify-center ${
+                            !combinedFile.file 
+                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed' 
+                            : 'bg-brand-blue hover:bg-brand-blue-dark text-white hover:shadow-xl hover:-translate-y-1'
+                        }`}
+                    >
+                        <PencilSquareIcon className="h-6 w-6 mr-2" />
+                        TẠO ĐỀ KIỂM TRA NGAY
                     </button>
                 </div>
 
+                {/* Right Column: Instructions & Info */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-amber-50 p-6 rounded-xl border border-amber-200">
-                        <div className="flex items-center gap-2 text-amber-800 font-bold mb-3">
-                            <ExclamationTriangleIcon className="h-5 w-5" />
-                            <span>Lưu ý về định dạng file</span>
-                        </div>
-                        <p className="text-xs text-amber-700 leading-relaxed">
-                            Hiện tại, trí tuệ nhân tạo (AI) yêu cầu file ma trận phải ở định dạng <strong>PDF</strong> hoặc <strong>Ảnh</strong> để xử lý chính xác nhất các bảng biểu phức tạp.
-                            <br/><br/>
-                            Nếu Thầy/Cô đang có file ma trận trong Word hoặc Excel, vui lòng nhấn <strong>F12</strong> (hoặc Save As) và chọn định dạng <strong>PDF</strong> trước khi tải lên nhé!
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center">
+                            <DocumentTextIcon className="h-5 w-5 mr-2 text-brand-blue" />
+                            Quy trình xử lý
+                        </h3>
+                        <ul className="space-y-4 text-sm text-slate-600">
+                            <li className="flex items-start">
+                                <span className="bg-slate-100 rounded-full h-6 w-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs font-bold text-slate-700">1</span>
+                                <span>Thầy/Cô chọn số lượng câu hỏi mong muốn.</span>
+                            </li>
+                            <li className="flex items-start">
+                                <span className="bg-slate-100 rounded-full h-6 w-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs font-bold text-slate-700">2</span>
+                                <span>AI phân tích file Ma trận & Đặc tả để hiểu mức độ nhận thức (NB, TH, VD, VDC).</span>
+                            </li>
+                            <li className="flex items-start">
+                                <span className="bg-slate-100 rounded-full h-6 w-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs font-bold text-slate-700">3</span>
+                                <span>Hệ thống tạo đề thi và cho phép tải về dưới dạng file Word chuẩn font <strong>Times New Roman (14pt)</strong>.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 text-yellow-800">
+                        <h3 className="font-bold text-sm mb-2">Lưu ý quan trọng</h3>
+                        <p className="text-xs mb-2">Để đảm bảo tính chính xác, file tải lên cần chứa đầy đủ thông tin về các đơn vị kiến thức.</p>
+                        <p className="text-xs">
+                            Hệ thống sẽ tự động định dạng văn bản chuẩn để Thầy/Cô có thể in ấn ngay sau khi tải về.
                         </p>
                     </div>
                 </div>
