@@ -8,7 +8,9 @@ import {
     UserCircleIcon, 
     ShieldCheckIcon,
     EyeIcon,
-    EyeSlashIcon
+    EyeSlashIcon,
+    EnvelopeIcon,
+    ArrowPathIcon
 } from '../icons';
 import { useNavigation } from '../../contexts/NavigationContext';
 
@@ -22,6 +24,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { navigate } = useNavigation();
   const [role, setRole] = useState<UserRole>('student');
   const [isLoginView, setIsLoginView] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(false);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,6 +32,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [fullName, setFullName] = useState('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Nam');
+  const [otp, setOtp] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,10 +79,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             }
         });
         if (error) throw error;
-        if (data.session) onLoginSuccess();
-        else {
-            setMessage("Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.");
-            setIsLoginView(true);
+        
+        // Nếu Supabase trả về user nhưng chưa xác thực, chuyển sang màn hình OTP
+        if (data.user && !data.session) {
+            setIsVerifying(true);
+            setMessage("Một mã xác thực đã được gửi đến email của bạn.");
+        } else if (data.session) {
+            onLoginSuccess();
         }
       }
     } catch (err: any) {
@@ -87,6 +94,114 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       setIsSubmitting(false);
     }
   };
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || otp.length < 6) {
+        setError("Vui lòng nhập mã xác thực 6 chữ số.");
+        return;
+    }
+    
+    setIsSubmitting(true);
+    setError(null);
+    try {
+        const { data, error } = await supabase.auth.verifyOtp({
+            email,
+            token: otp,
+            type: 'signup'
+        });
+        
+        if (error) throw error;
+        if (data.session) {
+            onLoginSuccess();
+        }
+    } catch (err: any) {
+        setError(err.message || "Mã xác thực không chính xác hoặc đã hết hạn.");
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError(null);
+    setMessage("Đang gửi lại mã...");
+    try {
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+        });
+        if (error) throw error;
+        setMessage("Mã xác thực mới đã được gửi!");
+    } catch (err: any) {
+        setError(err.message);
+    }
+  };
+
+  // Màn hình xác thực OTP
+  if (isVerifying) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 px-4 py-8">
+            <div className="w-full max-w-md">
+                <div className="text-center mb-8">
+                    <div className="mx-auto h-20 w-20 bg-indigo-100 rounded-3xl flex items-center justify-center mb-4">
+                        <EnvelopeIcon className="h-10 w-10 text-brand-primary" />
+                    </div>
+                    <h2 className="text-3xl font-display font-bold text-slate-800">Xác thực Email</h2>
+                    <p className="mt-2 text-slate-500 px-4">
+                        Chúng tôi đã gửi mã xác nhận đến <span className="font-bold text-slate-700">{email}</span>. Vui lòng kiểm tra hộp thư đến hoặc thư rác.
+                    </p>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
+                    <form onSubmit={handleVerifyEmail} className="space-y-6">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">
+                                Nhập mã 6 chữ số
+                            </label>
+                            <input
+                                type="text"
+                                maxLength={6}
+                                placeholder="000000"
+                                className="block w-full text-center text-3xl tracking-[0.5em] font-black rounded-2xl border-2 border-slate-100 px-4 py-4 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition-all"
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                            />
+                        </div>
+
+                        {error && <div className="bg-red-50 p-3 rounded-xl text-xs text-red-600 font-bold text-center border border-red-100">{error}</div>}
+                        {message && <div className="bg-green-50 p-3 rounded-xl text-xs text-green-700 font-bold text-center border border-green-100">{message}</div>}
+
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || otp.length < 6}
+                            className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold hover:bg-brand-primary-dark transition-all disabled:opacity-50 shadow-lg shadow-indigo-100"
+                        >
+                            {isSubmitting ? 'Đang xác thực...' : 'XÁC NHẬN TÀI KHOẢN'}
+                        </button>
+
+                        <div className="text-center pt-4">
+                            <p className="text-sm text-slate-500 mb-2">Không nhận được mã?</p>
+                            <button
+                                type="button"
+                                onClick={handleResendOtp}
+                                className="text-sm font-bold text-brand-primary hover:underline flex items-center justify-center mx-auto"
+                            >
+                                <ArrowPathIcon className="h-4 w-4 mr-1" /> Gửi lại mã mới
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <button 
+                    onClick={() => { setIsVerifying(false); setIsLoginView(false); }}
+                    className="mt-6 text-sm text-slate-400 hover:text-slate-600 flex items-center justify-center mx-auto font-medium"
+                >
+                    ← Quay lại chỉnh sửa thông tin
+                </button>
+            </div>
+        </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 px-4 py-8 overflow-y-auto">

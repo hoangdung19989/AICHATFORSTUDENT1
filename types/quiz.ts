@@ -1,3 +1,4 @@
+
 import type { ComponentType } from 'react';
 
 export interface TestSubject {
@@ -29,14 +30,17 @@ export interface SelfPracticeSubject {
   color: string;
 }
 
+export type Semester = 'Học kỳ 1' | 'Học kỳ 2' | 'Cả năm';
+
 export interface TestType {
-    id: '15-minute' | '45-minute' | 'semester';
+    id: '15-minute' | '45-minute' | 'midterm' | 'semester';
     name: string;
     duration: string;
     description: string;
     questionCount: number;
     essayCount: number;
     color: string;
+    requiresSemester: boolean; // Để biết có cần bước chọn Học kỳ không
 }
 
 export interface QuizQuestion {
@@ -53,9 +57,10 @@ export interface EssayQuestion {
 }
 
 export interface Quiz {
-  sourceSchool: string;
+  sourceSchool: string; // Nơi trích xuất đề (VD: Sở GD Hà Nội)
   title: string;
   timeLimit: string;
   questions: QuizQuestion[];
   essayQuestions?: EssayQuestion[];
+  semester?: string;
 }

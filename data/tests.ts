@@ -1,11 +1,47 @@
 
-// FIX: Corrected import path for types
 import type { TestGrade, TestType } from '../types/index';
 
 export const TEST_TYPES: TestType[] = [
-    { id: '15-minute', name: 'Kiểm tra 15 phút', duration: '15 Phút', description: 'Bài kiểm tra ngắn để ôn tập kiến thức vừa học.', questionCount: 10, essayCount: 0, color: 'bg-sky-500' },
-    { id: '45-minute', name: 'Kiểm tra 1 tiết', duration: '45 Phút', description: 'Bài kiểm tra định kỳ, bao gồm cả trắc nghiệm và tự luận.', questionCount: 25, essayCount: 2, color: 'bg-orange-500' },
-    { id: 'semester', name: 'Thi Học kỳ', duration: '60-90 Phút', description: 'Đề thi tổng hợp kiến thức toàn học kỳ. Thời gian tuỳ môn học.', questionCount: 40, essayCount: 3, color: 'bg-purple-500' }
+    { 
+        id: '15-minute', 
+        name: 'Kiểm tra 15 phút', 
+        duration: '15 Phút', 
+        description: 'Bài kiểm tra thường xuyên theo từng chương/bài.', 
+        questionCount: 10, 
+        essayCount: 0, 
+        color: 'bg-sky-500',
+        requiresSemester: false
+    },
+    { 
+        id: '45-minute', 
+        name: 'Kiểm tra 1 tiết', 
+        duration: '45 Phút', 
+        description: 'Kiểm tra định kỳ sau khi kết thúc một chủ đề lớn.', 
+        questionCount: 25, 
+        essayCount: 1, 
+        color: 'bg-indigo-500',
+        requiresSemester: true
+    },
+    { 
+        id: 'midterm', 
+        name: 'Kiểm tra Giữa kỳ', 
+        duration: '60-90 Phút', 
+        description: 'Đánh giá kiến thức giữa giai đoạn học tập.', 
+        questionCount: 35, 
+        essayCount: 2, 
+        color: 'bg-orange-500',
+        requiresSemester: true
+    },
+    { 
+        id: 'semester', 
+        name: 'Thi Học kỳ', 
+        duration: '90 Phút', 
+        description: 'Kỳ thi quan trọng tổng kết toàn bộ kiến thức học kỳ.', 
+        questionCount: 40, 
+        essayCount: 3, 
+        color: 'bg-purple-500',
+        requiresSemester: true 
+    }
 ];
 
 export const TEST_GRADES: TestGrade[] = [
