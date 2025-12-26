@@ -12,8 +12,7 @@ import {
     ArrowPathIcon,
     ShieldCheckIcon,
     RobotIcon,
-    ChartBarIcon,
-    XMarkIcon
+    ChartBarIcon
 } from '../../components/icons';
 // @ts-ignore
 import mammoth from 'https://esm.sh/mammoth';
@@ -79,7 +78,8 @@ const LessonPlanner: React.FC = () => {
         const content = document.getElementById('lesson-plan-content');
         if (!content) return;
         
-        const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Giao an 5512</title><style>table { border-collapse: collapse; width: 100%; margin-bottom: 20px; } th, td { border: 1px solid black; padding: 8px; text-align: left; } .font-bold { font-weight: bold; } .text-center { text-align: center; } .uppercase { text-transform: uppercase; } .page-break { page-break-after: always; }</style></head><body>";
+        // Cập nhật style cho file Word: Times New Roman, 14pt
+        const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Giao an 5512</title><style>body { font-family: 'Times New Roman', serif; font-size: 14pt; line-height: 1.5; } table { border-collapse: collapse; width: 100%; margin-bottom: 20px; font-size: 14pt; } th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; } .font-bold { font-weight: bold; } .text-center { text-align: center; } .uppercase { text-transform: uppercase; } .page-break { page-break-after: always; }</style></head><body>";
         const footer = "</body></html>";
         const sourceHTML = header + content.innerHTML + footer;
         
@@ -96,7 +96,7 @@ const LessonPlanner: React.FC = () => {
         document.body.removeChild(link);
     };
 
-    if (isGenerating) return <div className="h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Đang thiết kế giáo án chuẩn 5512..." subText="Quá trình này chỉ mất vài giây với AI Flash..." /></div>;
+    if (isGenerating) return <div className="h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Đang xử lý dữ liệu..." subText="AI đang phân tích và giữ nguyên cấu trúc bài dạy của bạn..." /></div>;
 
     if (result) {
         return (
@@ -117,7 +117,12 @@ const LessonPlanner: React.FC = () => {
                 </div>
 
                 {/* KHU VỰC GIÁO ÁN CHUẨN CẤU TRÚC */}
-                <div id="lesson-plan-content" className="bg-white shadow-2xl p-[2cm] font-serif text-[13pt] text-black leading-normal border border-slate-300 min-h-[29.7cm]">
+                {/* Áp dụng inline style font-family và font-size để đảm bảo chính xác */}
+                <div 
+                    id="lesson-plan-content" 
+                    className="bg-white shadow-2xl p-[2cm] text-black leading-normal border border-slate-300 min-h-[29.7cm]"
+                    style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '14pt' }}
+                >
                     {/* Header chuẩn hành chính */}
                     <div className="grid grid-cols-2 mb-10" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                         <div className="text-center font-bold">
@@ -146,23 +151,46 @@ const LessonPlanner: React.FC = () => {
                                 {(result.objectives?.knowledge || []).map((k, i) => <li key={i}>{k}</li>)}
                             </ul>
 
-                            <p className="font-bold">2. Về Năng lực số (Theo Thông tư 02/2025/TT-BGDĐT):</p>
-                            <div className="border rounded-xl p-4 bg-slate-50 italic text-[11pt] space-y-3">
-                                {(result.objectives?.digitalCompetencies || []).map((d, i) => (
-                                    <p key={i}>- <strong>{d.domain} (Mã {d.code}):</strong> {d.description}</p>
-                                ))}
+                            <p className="font-bold">2. Về năng lực:</p>
+                            <div className="pl-6">
+                                <p className="font-bold italic">- Năng lực chung:</p>
+                                <ul className="list-disc pl-10 space-y-1 mb-2">
+                                    {(result.objectives?.commonCompetencies || []).map((c, i) => <li key={i}>{c}</li>)}
+                                </ul>
+                                
+                                <p className="font-bold italic text-blue-800">- Năng lực số (Tích hợp):</p>
+                                <ul className="list-disc pl-10 space-y-1">
+                                    {(result.objectives?.digitalCompetencies || []).map((d, i) => (
+                                        <li key={i} className="text-blue-800">
+                                            <strong>{d.domain} ({d.code}):</strong> {d.description}
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
+
+                            <p className="font-bold">3. Về phẩm chất:</p>
+                            <ul className="list-disc pl-10 space-y-1">
+                                {(result.objectives?.virtues || []).map((v, i) => <li key={i}>{v}</li>)}
+                            </ul>
                         </div>
                     </div>
 
-                    {/* Section II: Thiết bị */}
+                    {/* Section II: Thiết bị dạy học */}
                     <div className="mb-8">
                         <h3 className="font-bold uppercase mb-4">II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU</h3>
-                        <div className="pl-8">
-                             <ul className="list-disc pl-10 space-y-1">
-                                {(result.materials?.equipment || []).map((e, i) => <li key={i}>{e}</li>)}
-                                {(result.materials?.resources || []).map((r, i) => <li key={i} className="text-blue-700 italic">{r} (Học liệu số đề xuất)</li>)}
-                             </ul>
+                        <div className="pl-4 space-y-4">
+                             <div>
+                                <p className="font-bold">1. Giáo viên</p>
+                                <ul className="list-disc pl-10 space-y-1">
+                                    {(result.materials?.teacher || []).map((t, i) => <li key={i}>{t}</li>)}
+                                </ul>
+                             </div>
+                             <div>
+                                <p className="font-bold">2. Học sinh</p>
+                                <ul className="list-disc pl-10 space-y-1">
+                                    {(result.materials?.student || []).map((s, i) => <li key={i}>{s}</li>)}
+                                </ul>
+                             </div>
                         </div>
                     </div>
 
@@ -171,20 +199,38 @@ const LessonPlanner: React.FC = () => {
                         <h3 className="font-bold uppercase mb-6">III. TIẾN TRÌNH DẠY HỌC</h3>
                         <div className="space-y-10">
                             {(result.activities || []).map((act, idx) => (
-                                <div key={act.id} className="pl-4">
-                                    <h4 className="font-bold mb-4">Hoạt động {act.id}: {act.title}</h4>
-                                    <div className="pl-8 space-y-2">
+                                <div key={act.id} className="pl-0">
+                                    <h4 className="font-bold mb-4 bg-slate-100 p-2 border-l-4 border-black">{act.title}</h4>
+                                    <div className="pl-4 space-y-2">
                                         <p><strong>a) Mục tiêu:</strong> {act.goal}</p>
                                         <p><strong>b) Nội dung:</strong> {act.content}</p>
                                         <p><strong>c) Sản phẩm:</strong> {act.product}</p>
+                                        
                                         <div className="mt-4">
                                             <p className="font-bold italic underline mb-2">d) Tổ chức thực hiện:</p>
-                                            <div className="pl-6 space-y-2 text-[12pt]">
-                                                <p><strong>- Chuyển giao nhiệm vụ:</strong> {act.execution?.step1}</p>
-                                                <p><strong>- Thực hiện nhiệm vụ:</strong> {act.execution?.step2}</p>
-                                                <p><strong>- Báo cáo, thảo luận:</strong> {act.execution?.step3}</p>
-                                                <p><strong>- Kết luận, nhận định:</strong> {act.execution?.step4}</p>
-                                            </div>
+                                            
+                                            {/* BẢNG TỔ CHỨC THỰC HIỆN - Cỡ chữ 14pt */}
+                                            <table className="w-full border-collapse border border-black mt-2" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '14pt' }}>
+                                                <thead>
+                                                    <tr className="bg-slate-50">
+                                                        <th className="border border-black p-2 text-center w-2/3" style={{ border: '1px solid black' }}>Hoạt động của giáo viên và học sinh</th>
+                                                        <th className="border border-black p-2 text-center w-1/3" style={{ border: '1px solid black' }}>Sản phẩm dự kiến</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td className="border border-black p-3 align-top" style={{ border: '1px solid black' }}>
+                                                            {act.execution?.step1 && <p className="mb-2"><strong>Bước 1: Chuyển giao nhiệm vụ</strong><br/>{act.execution.step1}</p>}
+                                                            {act.execution?.step2 && <p className="mb-2"><strong>Bước 2: Thực hiện nhiệm vụ</strong><br/>{act.execution.step2}</p>}
+                                                            {act.execution?.step3 && <p className="mb-2"><strong>Bước 3: Báo cáo, thảo luận</strong><br/>{act.execution.step3}</p>}
+                                                            {act.execution?.step4 && <p><strong>Bước 4: Kết luận, nhận định</strong><br/>{act.execution.step4}</p>}
+                                                        </td>
+                                                        <td className="border border-black p-3 align-top" style={{ border: '1px solid black' }}>
+                                                            <div dangerouslySetInnerHTML={{ __html: (act.product || "Học sinh hoàn thành nhiệm vụ.").replace(/\n/g, '<br/>') }} />
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 </div>
@@ -192,17 +238,17 @@ const LessonPlanner: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Section IV: Bảng phân tích NLS - CỰC KỲ QUAN TRỌNG */}
-                    <div className="mt-20">
-                        <h3 className="font-bold uppercase mb-6">IV. BẢNG PHÂN TÍCH PHÁT TRIỂN NĂNG LỰC SỐ CHO HỌC SINH</h3>
-                        <p className="italic text-sm mb-4">(Bảng này minh chứng việc tích hợp mã NLS của Thông tư 02/2025 vào tiến trình bài dạy ở mục III)</p>
-                        <table className="w-full border-collapse border border-black text-[11pt]" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black' }}>
+                    {/* Section IV: Bảng phân tích NLS (Minh chứng) - Cỡ chữ 14pt */}
+                    <div className="mt-20 page-break">
+                        <h3 className="font-bold uppercase mb-6">IV. PHỤ LỤC: BẢNG MÃ HOÁ NĂNG LỰC SỐ</h3>
+                        <p className="italic text-sm mb-4">(Bảng này được AI trích xuất dựa trên các hoạt động có sử dụng công nghệ trong bài dạy)</p>
+                        <table className="w-full border-collapse border border-black" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '14pt' }}>
                             <thead>
-                                <tr className="bg-slate-100">
+                                <tr className="bg-slate-200">
                                     <th className="border border-black p-2 w-12 text-center" style={{ border: '1px solid black' }}>TT</th>
-                                    <th className="border border-black p-2 text-left" style={{ border: '1px solid black' }}>Hoạt động dạy học</th>
-                                    <th className="border border-black p-2 text-left" style={{ border: '1px solid black' }}>Cách thức tổ chức phát triển NLS</th>
-                                    <th className="border border-black p-2 text-left w-48" style={{ border: '1px solid black' }}>Mã Năng lực số & Biểu hiện</th>
+                                    <th className="border border-black p-2 text-left" style={{ border: '1px solid black' }}>Hoạt động</th>
+                                    <th className="border border-black p-2 text-left" style={{ border: '1px solid black' }}>Cách thức tổ chức</th>
+                                    <th className="border border-black p-2 text-left w-64" style={{ border: '1px solid black' }}>Mã NLS & Biểu hiện (Theo 3456)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -211,19 +257,23 @@ const LessonPlanner: React.FC = () => {
                                         <td className="border border-black p-2 text-center" style={{ border: '1px solid black' }}>{row.index}</td>
                                         <td className="border border-black p-2 font-bold" style={{ border: '1px solid black' }}>{row.activityName}</td>
                                         <td className="border border-black p-2" style={{ border: '1px solid black' }}>{row.organization}</td>
-                                        <td className="border border-black p-2 text-xs italic" style={{ border: '1px solid black' }}>{row.competencyDetail}</td>
+                                        <td className="border border-black p-2 text-sm text-blue-800 font-medium" style={{ border: '1px solid black' }}>{row.competencyDetail}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* Chân trang */}
                     <div className="mt-20 grid grid-cols-2 text-center italic" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                        <div></div>
+                        <div>
+                            <p>Đã duyệt của Tổ chuyên môn</p>
+                            <p className="font-bold not-italic mt-2">Tổ trưởng</p>
+                            <div className="h-24"></div>
+                            <p className="font-bold not-italic">..........................................</p>
+                        </div>
                         <div>
                             <p>............, ngày .... tháng .... năm 20...</p>
-                            <p className="font-bold not-italic mt-2">Người biên soạn</p>
+                            <p className="font-bold not-italic mt-2">Giáo viên soạn</p>
                             <div className="h-24"></div>
                             <p className="font-bold not-italic">..........................................</p>
                         </div>
@@ -243,8 +293,8 @@ const LessonPlanner: React.FC = () => {
                         <ShieldCheckIcon className="h-12 w-12 text-white" />
                     </div>
                     <div className="text-center md:text-left">
-                        <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase">Số hoá giáo án 5512</h1>
-                        <p className="text-blue-100 mt-2 opacity-95 text-lg">Tải file cũ lên để AI tự động chuyển đổi sang khung 5512 tích hợp Năng lực số.</p>
+                        <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase">Số hoá giáo án</h1>
+                        <p className="text-blue-100 mt-2 opacity-95 text-lg">Giữ nguyên giáo án gốc, chỉ thêm Năng lực số.</p>
                     </div>
                 </div>
             </div>
@@ -280,8 +330,8 @@ const LessonPlanner: React.FC = () => {
 
                         <div className="space-y-6">
                             <div className="flex items-center justify-between">
-                                <label className="block text-sm font-bold text-slate-700">Tải giáo án cũ (Tùy chọn)</label>
-                                <span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-bold">Word, PDF, Ảnh chụp</span>
+                                <label className="block text-sm font-bold text-slate-700">Tải giáo án cũ (.docx)</label>
+                                <span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-bold">Word (Khuyên dùng)</span>
                             </div>
                             
                             <div 
@@ -302,8 +352,8 @@ const LessonPlanner: React.FC = () => {
                                         <div className="bg-slate-100 p-4 rounded-2xl mb-4 group-hover:bg-brand-blue/10 transition-colors">
                                             <CloudArrowUpIcon className="h-12 w-12 text-slate-400" />
                                         </div>
-                                        <p className="text-slate-500 font-bold">Nhấn để tải file giáo án cần số hoá</p>
-                                        <p className="text-slate-400 text-xs mt-1">Hỗ trợ trích xuất nội dung từ ảnh chụp soạn tay</p>
+                                        <p className="text-slate-500 font-bold">Nhấn để tải file giáo án</p>
+                                        <p className="text-slate-400 text-xs mt-1">Hệ thống sẽ giữ nguyên nội dung gốc</p>
                                     </>
                                 )}
                             </div>
@@ -315,7 +365,7 @@ const LessonPlanner: React.FC = () => {
 
                             <textarea 
                                 className="w-full p-5 border-2 rounded-2xl bg-slate-50/50 focus:border-brand-blue focus:bg-white outline-none min-h-[150px] text-sm transition-all" 
-                                placeholder="Dán nội dung giáo án cũ hoặc gõ các ý chính bài dạy vào đây..."
+                                placeholder="Dán nội dung giáo án cũ vào đây (đầy đủ các mục)..."
                                 value={oldContentText}
                                 onChange={e => setOldContentText(e.target.value)}
                             />
@@ -324,31 +374,27 @@ const LessonPlanner: React.FC = () => {
 
                     <button onClick={handleGenerate} disabled={!lessonName || (!oldFile && !oldContentText)} className="w-full py-8 bg-brand-blue text-white rounded-[2rem] font-black text-3xl shadow-2xl hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4 uppercase">
                         <RobotIcon className="h-10 w-10" />
-                        Tái cấu trúc giáo án NLS
+                        Xử lý giáo án
                     </button>
                 </div>
 
                 <div className="lg:col-span-1">
                     <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white sticky top-10 shadow-2xl">
                         <h3 className="text-xl font-bold mb-8 text-brand-yellow flex items-center border-b border-white/10 pb-4">
-                            <ChartBarIcon className="h-6 w-6 mr-2" /> Quy trình thông minh
+                            <ChartBarIcon className="h-6 w-6 mr-2" /> Lưu ý quan trọng
                         </h3>
                         <div className="space-y-8">
                             <div className="flex gap-4">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">1</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Đọc nội dung:</strong> AI trích xuất chuyên môn từ tài liệu cũ của Thầy/Cô.</p>
+                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Nguyên vẹn:</strong> AI sẽ không tự ý cắt bỏ Năng lực chung, Phẩm chất hay các bước dạy học.</p>
                             </div>
                             <div className="flex gap-4">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">2</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Khung 5512:</strong> Tự động sắp xếp vào các mục Mục tiêu, Thiết bị, Tiến trình.</p>
+                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Bổ sung:</strong> Chỉ thêm mã Năng lực số vào các hoạt động có sử dụng công nghệ.</p>
                             </div>
                             <div className="flex gap-4">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">3</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Ánh xạ NLS:</strong> Soi chiếu các hoạt động với 6 Miền năng lực số 2025.</p>
-                            </div>
-                            <div className="flex gap-4">
-                                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">4</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Xuất bản:</strong> Cho phép tải file .doc để Thầy/Cô chỉnh sửa và lưu trữ.</p>
+                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Định dạng:</strong> Kết quả hiển thị đúng dạng bảng (Hoạt động - Sản phẩm) như file gốc.</p>
                             </div>
                         </div>
                     </div>

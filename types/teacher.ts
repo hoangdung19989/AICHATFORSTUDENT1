@@ -36,8 +36,8 @@ export interface LessonPlan {
         virtues: string[];
     };
     materials: {
-        equipment: string[];
-        resources: string[];
+        teacher: string[]; // Thiết bị/Học liệu của Giáo viên
+        student: string[]; // Thiết bị/Học liệu của Học sinh
     };
     activities: LessonActivity[];
     nlsAnalysisTable: NlsAnalysisRow[];
