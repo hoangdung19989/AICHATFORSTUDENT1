@@ -19,9 +19,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // CACHE: Khởi tạo profile từ LocalStorage nếu có để tránh flash màn hình chờ khi F5
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+      try {
+          const cached = localStorage.getItem('user_profile');
+          return cached ? JSON.parse(cached) : null;
+      } catch (e) {
+          return null;
+      }
+  });
 
   const fetchProfile = async (userId: string) => {
       try {
@@ -32,6 +41,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .single();
           
           if (error) return null;
+          
+          // CACHE: Lưu profile mới nhất vào LocalStorage
+          if (data) {
+              localStorage.setItem('user_profile', JSON.stringify(data));
+          }
+          
           return data as UserProfile;
       } catch (err) {
           console.error('Exception fetching profile:', err);
@@ -42,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshProfile = async () => {
       if (user) {
           const p = await fetchProfile(user.id);
-          setProfile(p);
+          if (p) setProfile(p);
       }
   };
 
@@ -60,15 +75,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data, error } = await supabase.auth.getSession();
             if (error) throw error;
             const currentSession = data?.session;
+            
             if (!mounted) return;
+
             if (currentSession?.user) {
                 setSession(currentSession);
                 setUser(currentSession.user);
+                
+                // Fetch profile mới nhất từ server để cập nhật cache
                 const p = await fetchProfile(currentSession.user.id);
-                if (mounted) setProfile(p);
+                if (mounted && p) setProfile(p);
+            } else {
+                // Nếu không có session, xóa cache profile cũ
+                localStorage.removeItem('user_profile');
+                setProfile(null);
             }
         } catch (error) {
             console.error("Auth init error:", error);
+            localStorage.removeItem('user_profile');
         } finally {
             if (mounted) {
                 setIsLoading(false);
@@ -86,13 +110,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           setUser(null);
           setProfile(null);
+          localStorage.removeItem('user_profile'); // Xóa cache khi đăng xuất
           setIsLoading(false);
       } else if (session?.user) {
           setSession(session);
           setUser(session.user);
+          // Kiểm tra nếu profile hiện tại khác với user mới (trường hợp đổi acc)
           if (!profile || profile.id !== session.user.id) {
               const p = await fetchProfile(session.user.id);
-              if (mounted) setProfile(p);
+              if (mounted && p) setProfile(p);
           }
       }
       if (mounted) setIsLoading(false);
@@ -114,8 +140,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setSession(null);
         
-        // 2. Chỉ xóa lịch sử điều hướng để khi đăng nhập lại sẽ vào trang chủ sạch sẽ
-        // Chúng ta KHÔNG dùng localStorage.clear() để bảo vệ các dữ liệu khác
+        // 2. Xóa cache và lịch sử
+        localStorage.removeItem('user_profile');
         localStorage.removeItem('nav_history');
         
         // 3. Gọi lệnh đăng xuất từ hệ thống Supabase (Xóa Token)

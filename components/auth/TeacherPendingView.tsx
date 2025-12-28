@@ -6,7 +6,7 @@ import { supabase } from '../../services/supabaseClient';
 import { ClockIcon, ArrowPathIcon } from '../icons'; 
 
 const TeacherPendingView: React.FC = () => {
-  const { signOut, user, refreshProfile } = useAuth();
+  const { signOut, user, refreshProfile, profile } = useAuth();
   const { navigate } = useNavigation();
   const [isChecking, setIsChecking] = useState(true);
 
@@ -15,6 +15,12 @@ const TeacherPendingView: React.FC = () => {
       const verifyRealStatus = async () => {
           if (!user) return;
           
+          // FAST TRACK: Nếu profile đã có trong context (từ cache) và đã active, chuyển ngay lập tức
+          if (profile?.status === 'active' || profile?.role === 'admin') {
+              navigate(profile.role === 'admin' ? 'admin-dashboard' : 'teacher-dashboard');
+              return;
+          }
+
           try {
               // Lấy dữ liệu mới nhất trực tiếp từ bảng profiles (bỏ qua cache local)
               const { data, error } = await supabase
@@ -47,15 +53,13 @@ const TeacherPendingView: React.FC = () => {
       };
 
       verifyRealStatus();
-  }, [user, navigate, refreshProfile]);
+  }, [user, navigate, refreshProfile, profile]);
 
   if (isChecking) {
+      // Hiển thị một màn hình trắng hoặc loading rất tối giản để tránh flicker
       return (
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
-              <div className="text-center animate-pulse">
-                  <div className="w-16 h-16 bg-slate-200 rounded-full mx-auto mb-4"></div>
-                  <p className="text-slate-500 font-medium">Đang xác thực thông tin...</p>
-              </div>
+              {/* Chỉ hiện spinner nếu chờ quá lâu, tránh nháy màn hình */}
           </div>
       );
   }
