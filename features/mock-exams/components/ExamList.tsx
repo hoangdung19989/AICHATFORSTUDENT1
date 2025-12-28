@@ -10,7 +10,7 @@ import { BriefcaseIcon, SparklesIcon, ChevronRightIcon, ClockIcon, CheckCircleIc
 interface ExamListProps {
     subject: MockExamSubject;
     grade: TestGrade;
-    onSelectExam: (examData: any) => void;
+    onSelectExam: (examData: any, examId?: string) => void;
     onGenerateRandom: () => void;
     onBack: () => void;
     onBackToSubjects: () => void;
@@ -54,14 +54,26 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
         }
 
         const dbContent: any = exam.questions;
+        let finalQuestions = dbContent.questions || [];
+        let examTitle = exam.title;
+
+        // Logic chọn mã đề ngẫu nhiên nếu có variants
+        if (dbContent.variants && Array.isArray(dbContent.variants) && dbContent.variants.length > 0) {
+            const randomIndex = Math.floor(Math.random() * dbContent.variants.length);
+            const selectedVariant = dbContent.variants[randomIndex];
+            finalQuestions = selectedVariant.questions;
+            examTitle = `${exam.title} (Mã đề: ${selectedVariant.code})`;
+        }
+
         const quizData = {
             sourceSchool: "Đề thi Giáo viên",
-            title: exam.title,
-            timeLimit: "45 phút",
-            questions: dbContent.questions || [],
+            title: examTitle,
+            timeLimit: "45 phút", // Hoặc lấy từ db nếu có trường timeLimit
+            questions: finalQuestions,
             essayQuestions: dbContent.essayQuestions || []
         };
-        onSelectExam(quizData);
+        // Pass exam.id to parent
+        onSelectExam(quizData, exam.id);
     };
 
     if (isLoading) return <LoadingSpinner text="Đang tải danh sách đề thi..." />;
@@ -87,6 +99,7 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                             {exams.map(exam => {
                                 const isExpired = new Date(exam.deadline) < new Date();
                                 const isDone = exam.exam_results && exam.exam_results.length > 0;
+                                const hasVariants = exam.questions?.variants?.length > 1;
                                 
                                 return (
                                     <button
@@ -98,6 +111,7 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                                             <div className="flex items-center gap-2 mb-2">
                                                 <h3 className={`text-xl font-bold ${isExpired ? 'text-slate-500' : 'text-slate-800 group-hover:text-orange-600'}`}>{exam.title}</h3>
                                                 {isDone && <span className="flex items-center px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-md"><CheckCircleIcon className="w-3 h-3 mr-1" /> ĐÃ NỘP</span>}
+                                                {!isDone && hasVariants && <span className="flex items-center px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-md"><SparklesIcon className="w-3 h-3 mr-1" /> TRỘN ĐỀ</span>}
                                             </div>
                                             <div className="flex items-center text-sm font-medium space-x-4">
                                                 <span className={`flex items-center ${isExpired ? 'text-red-500' : 'text-slate-400'}`}>

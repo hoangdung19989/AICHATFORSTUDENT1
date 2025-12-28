@@ -60,7 +60,8 @@ const TestGenerator: React.FC = () => {
         try {
             const base64 = uploadedFile.base64 || "";
             const mimeType = uploadedFile.file.type || 'application/pdf';
-            const quiz = await generateTestFromMatrixDocument(subject, grade, base64, mimeType, mcCount, essayCount);
+            // Pass text content for docx files
+            const quiz = await generateTestFromMatrixDocument(subject, grade, base64, mimeType, mcCount, essayCount, uploadedFile.text);
             setResult(quiz);
         } catch (err: any) { setError(err.message); }
         finally { setIsGenerating(false); }

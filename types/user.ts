@@ -23,6 +23,9 @@ export interface UserProfile {
     avatar_url?: string;
     role: 'student' | 'teacher' | 'admin';
     status: 'active' | 'pending' | 'blocked';
+    province?: string;
+    ward_commune?: string;
+    school_name?: string;
     created_at?: string;
 }
 

@@ -20,7 +20,7 @@ const cleanJsonString = (text: string): string => {
     return "{}";
 };
 
-// Dữ liệu khung năng lực số 3456/BGDĐT-GDPT
+// ... (Giữ nguyên các constant NLS_FRAMEWORK_3456 và LESSON_PLAN_TEMPLATE) ...
 const NLS_FRAMEWORK_3456 = `
 BẢNG MÃ CHỈ BÁO NĂNG LỰC SỐ (Theo văn bản 3456/BGDĐT-GDPT):
 1. MIỀN 1: THÔNG TIN VÀ DỮ LIỆU (1.1.CB1a -> 1.3.NC1b)
@@ -31,7 +31,6 @@ BẢNG MÃ CHỈ BÁO NĂNG LỰC SỐ (Theo văn bản 3456/BGDĐT-GDPT):
 6. MIỀN 6: TRÍ TUỆ NHÂN TẠO (AI) (6.1.CB2a -> 6.3.NC1b)
 `;
 
-// Mẫu JSON mặc định
 const LESSON_PLAN_TEMPLATE = {
     period: "Số tiết",
     topic: "Tên bài dạy",
@@ -147,7 +146,7 @@ ${JSON.stringify(LESSON_PLAN_TEMPLATE)}
     }
 };
 
-// --- CÁC HÀM KHÁC GIỮ NGUYÊN ---
+// ... (Các hàm getGenericTutorResponse, getTutorResponse, generateQuiz, generateMockExam, generatePracticeExercises, generatePersonalizedLearningPath GIỮ NGUYÊN) ...
 
 export const getGenericTutorResponse = async (message: string): Promise<string> => {
     try {
@@ -219,24 +218,79 @@ export const generatePersonalizedLearningPath = async (focusTopics: string[], gr
     } catch (e) { throw new Error("Lỗi tạo lộ trình"); }
 };
 
-export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number): Promise<Quiz> => {
+export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number, textContent?: string): Promise<Quiz> => {
     try {
         const ai = getAiClient();
+        
+        const parts: any[] = [
+             { text: `Tạo đề thi ${subject} ${grade} từ ma trận này. ${mcCount} câu TN, ${essayCount} câu TL. Trả về JSON.` }
+        ];
+
+        if (textContent) {
+             parts.push({ text: `NỘI DUNG MA TRẬN (Trích xuất từ văn bản): \n${textContent}` });
+        } else if (base64Data && !mimeType.includes('wordprocessingml')) {
+             parts.push({ inlineData: { data: base64Data, mimeType } });
+        }
+
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: [{ parts: [{ inlineData: { data: base64Data, mimeType } }, { text: `Tạo đề thi ${subject} ${grade} từ ma trận này. ${mcCount} câu TN, ${essayCount} câu TL. Trả về JSON.` }] }],
+            contents: [{ parts }],
         });
         return JSON.parse(cleanJsonString(response.text || '{}'));
     } catch (e) { console.error(e); return { title: "Lỗi xử lý file", sourceSchool: "", timeLimit: "", questions: [] }; }
 };
 
-export const parseExamDocument = async (base64Data: string, mimeType: string): Promise<Quiz> => {
+export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
     try {
         const ai = getAiClient();
+        
+        const promptText = `
+        NHIỆM VỤ: Phân tích file đề thi này và trích xuất thành dữ liệu JSON.
+        
+        YÊU CẦU:
+        1. Tách biệt phần TRẮC NGHIỆM (Multiple Choice) và TỰ LUẬN (Essay).
+        2. Với câu trắc nghiệm:
+           - Trích xuất nội dung câu hỏi.
+           - Trích xuất 4 phương án (A, B, C, D) vào mảng options. Giữ nguyên nội dung, bỏ tiền tố "A." "B.".
+           - CỐ GẮNG tìm đáp án đúng nếu trong đề có đánh dấu (bôi đậm, gạch chân, hoặc bảng đáp án cuối đề). Nếu không tìm thấy, hãy để chuỗi rỗng "".
+        3. Với câu tự luận:
+           - Trích xuất nội dung câu hỏi.
+        
+        ĐỊNH DẠNG JSON TRẢ VỀ:
+        {
+          "title": "Tên đề thi (nếu có)",
+          "questions": [
+            {
+              "question": "Nội dung câu hỏi 1",
+              "options": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3", "Lựa chọn 4"],
+              "correctAnswer": "Lựa chọn đúng (chính xác theo text trong options) hoặc để trống",
+              "explanation": ""
+            }
+          ],
+          "essayQuestions": [
+            {
+              "question": "Nội dung câu tự luận 1",
+              "sampleAnswer": ""
+            }
+          ]
+        }
+        `;
+
+        const parts: any[] = [{ text: promptText }];
+
+        if (textContent) {
+             parts.push({ text: `NỘI DUNG ĐỀ THI (Trích xuất từ văn bản): \n${textContent}` });
+        } else if (base64Data && !mimeType.includes('wordprocessingml')) {
+             parts.push({ inlineData: { data: base64Data, mimeType } });
+        }
+
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: [{ parts: [{ inlineData: { data: base64Data, mimeType } }, { text: "Trích xuất câu hỏi thành JSON: { questions: [], essayQuestions: [] }" }] }],
+            contents: [{ parts }],
         });
         return JSON.parse(cleanJsonString(response.text || '{}'));
-    } catch (e) { console.error(e); return { title: "Lỗi đọc file", sourceSchool: "", timeLimit: "", questions: [] }; }
+    } catch (e) { 
+        console.error(e); 
+        return { title: "Lỗi đọc file", sourceSchool: "", timeLimit: "", questions: [] }; 
+    }
 };

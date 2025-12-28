@@ -1,14 +1,16 @@
+
 import React from 'react';
-import { CheckCircleIcon, XCircleIcon, ArrowRightCircleIcon } from '../../../components/icons';
+import { CheckCircleIcon, XCircleIcon, ArrowRightCircleIcon, ExclamationTriangleIcon } from '../../../components/icons';
 
 interface TestResultsViewProps {
   score: number;
   totalQuestions: number;
   onRetake: () => void;
   onBackToSubjects: () => void;
+  hideDetails?: boolean; // New prop to hide detailed answers
 }
 
-const TestResultsView: React.FC<TestResultsViewProps> = ({ score, totalQuestions, onRetake, onBackToSubjects }) => {
+const TestResultsView: React.FC<TestResultsViewProps> = ({ score, totalQuestions, onRetake, onBackToSubjects, hideDetails = false }) => {
   const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
   const isPass = percentage >= 50;
 
@@ -57,6 +59,13 @@ const TestResultsView: React.FC<TestResultsViewProps> = ({ score, totalQuestions
             <span className="font-semibold">{totalQuestions - score} Sai</span>
         </div>
       </div>
+
+      {hideDetails && (
+          <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-center max-w-md">
+              <ExclamationTriangleIcon className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span>Theo quy định của đề thi này, đáp án chi tiết tạm thời bị ẩn để đảm bảo công bằng.</span>
+          </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
         <button

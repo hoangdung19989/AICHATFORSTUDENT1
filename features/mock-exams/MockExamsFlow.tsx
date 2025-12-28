@@ -17,6 +17,7 @@ const MockExamsFlow: React.FC = () => {
     const [selectedSubject, setSelectedSubject] = useState<MockExamSubject | null>(null);
     const [selectedGrade, setSelectedGrade] = useState<TestGrade | null>(null);
     const [preloadedQuiz, setPreloadedQuiz] = useState<Quiz | null>(null); // For teacher exams
+    const [selectedExamId, setSelectedExamId] = useState<string | undefined>(undefined); // NEW: Track Exam ID
 
     const handleSelectGrade = (grade: TestGrade) => {
         if (!user) {
@@ -27,19 +28,7 @@ const MockExamsFlow: React.FC = () => {
         setSelectedGrade(grade);
     };
 
-    const handleSelectTeacherExam = (quiz: Quiz) => {
-        setPreloadedQuiz(quiz);
-    };
-
-    const handleGenerateRandom = () => {
-        setPreloadedQuiz(null); // Explicitly null to trigger AI generation in View
-    };
-    
-    // View: Taking the Exam
-    // Logic: If preloadedQuiz exists, pass it. If not (and we are in this view), MockExamView handles generation.
-    // However, MockExamView currently generates on mount if no data.
-    // We need to slightly adapt MockExamView or control it here.
-    // Simplest approach: Add a new state `isTakingExam` to separate List View from Exam View.
+    // Logic tách biệt trạng thái List và Exam View
     const [isTakingExam, setIsTakingExam] = useState(false);
 
     if (isTakingExam && selectedSubject && selectedGrade) {
@@ -48,13 +37,16 @@ const MockExamsFlow: React.FC = () => {
                 subject={selectedSubject}
                 grade={selectedGrade}
                 initialQuizData={preloadedQuiz} // Pass the teacher exam if selected
+                examId={selectedExamId} // Pass exam ID for database linking
                 onBack={() => {
                     setIsTakingExam(false);
                     setPreloadedQuiz(null);
+                    setSelectedExamId(undefined);
                 }}
                 onBackToSubjects={() => {
                     setIsTakingExam(false);
                     setPreloadedQuiz(null);
+                    setSelectedExamId(undefined);
                     setSelectedGrade(null);
                     setSelectedSubject(null);
                 }}
@@ -67,12 +59,14 @@ const MockExamsFlow: React.FC = () => {
             <ExamList 
                 subject={selectedSubject}
                 grade={selectedGrade}
-                onSelectExam={(quiz) => {
+                onSelectExam={(quiz, examId) => {
                     setPreloadedQuiz(quiz);
+                    setSelectedExamId(examId); // Save ID
                     setIsTakingExam(true);
                 }}
                 onGenerateRandom={() => {
                     setPreloadedQuiz(null);
+                    setSelectedExamId(undefined);
                     setIsTakingExam(true);
                 }}
                 onBack={() => setSelectedGrade(null)}

@@ -14,11 +14,12 @@ interface MockExamViewProps {
     subject: MockExamSubject;
     grade: TestGrade;
     initialQuizData: Quiz | null;
+    examId?: string; // NEW: Receive Exam ID
     onBack: () => void;
     onBackToSubjects: () => void;
 }
 
-const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuizData, onBack, onBackToSubjects }) => {
+const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuizData, examId, onBack, onBackToSubjects }) => {
     const { user } = useAuth();
     const [quizData, setQuizData] = useState<Quiz | null>(initialQuizData);
     const [isLoading, setIsLoading] = useState(!initialQuizData);
@@ -61,7 +62,8 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         
         if (user) {
             try {
-                await supabase.from('exam_results').insert({
+                // Insert result into Supabase
+                const payload: any = {
                     user_id: user.id,
                     subject_name: subject.name,
                     grade_name: grade.name,
@@ -73,12 +75,19 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                         is_cheating: cheatDetected || violations >= 1,
                         auto_submitted: cheatDetected
                     }
-                });
+                };
+
+                // CRITICAL: Attach exam_id if this is a teacher-assigned exam
+                if (examId) {
+                    payload.exam_id = examId;
+                }
+
+                await supabase.from('exam_results').insert(payload);
             } catch (err) {
                  console.error("Error saving results:", err);
             }
         }
-    }, [user, subject.name, grade.name, violations]);
+    }, [user, subject.name, grade.name, violations, examId]);
 
     const {
         currentQuestion, currentQuestionIndex, selectedAnswer, isAnswered, 
@@ -146,6 +155,9 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
     }
 
     if (showResults && quizData) {
+        // Kiểm tra xem đây có phải đề từ giáo viên hay không để ẩn đáp án chi tiết
+        const isTeacherExam = quizData.sourceSchool === "Đề thi Giáo viên";
+
         return (
             <div className="container mx-auto max-w-4xl">
                 {isAutoSubmitted && (
@@ -157,7 +169,13 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                         </div>
                     </div>
                 )}
-                <TestResultsView score={finalScore} totalQuestions={quizData.questions.length} onRetake={handleRetake} onBackToSubjects={onBackToSubjects} />
+                <TestResultsView 
+                    score={finalScore} 
+                    totalQuestions={quizData.questions.length} 
+                    onRetake={handleRetake} 
+                    onBackToSubjects={onBackToSubjects}
+                    hideDetails={isTeacherExam} // Ẩn chi tiết nếu là đề giáo viên
+                />
             </div>
         );
     }
@@ -230,6 +248,17 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                 </div>
 
                 <div className="p-6 sm:p-10">
+                    {/* Image Illustration */}
+                    {currentQuestion.image && (
+                        <div className="mb-6 flex justify-center">
+                            <img 
+                                src={currentQuestion.image} 
+                                alt="Hình minh họa" 
+                                className="max-h-64 object-contain rounded-lg border border-slate-200"
+                            />
+                        </div>
+                    )}
+
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-10 leading-snug">{currentQuestion.question}</h2>
                     <div className="space-y-4">
                         {currentQuestion.options.map((option, index) => {
@@ -237,17 +266,31 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                             const isSelected = option === selectedAnswer;
                             const optionLabel = String.fromCharCode(65 + index);
                             let buttonClass = 'border-slate-200 bg-white hover:border-brand-primary hover:bg-slate-50';
+                            
+                            // LOGIC MỚI: Nếu đang làm bài, hiện màu chọn bình thường
+                            // Nếu đã trả lời (isAnswered) và KHÔNG phải đề giáo viên, thì mới hiện Đúng/Sai.
+                            // Nếu là đề giáo viên, ta giữ trạng thái đã chọn (ví dụ màu xám đậm hoặc xanh dương) nhưng KHÔNG tiết lộ đáp án đúng/sai.
+                            const isTeacherExam = quizData.sourceSchool === "Đề thi Giáo viên";
+
                             if (isAnswered) {
-                                if (isCorrect) buttonClass = 'bg-green-50 border-green-500 ring-2 ring-green-200';
-                                else if (isSelected) buttonClass = 'bg-red-50 border-red-500 ring-2 ring-red-200';
-                                else buttonClass = 'opacity-50 grayscale border-slate-100';
+                                if (isTeacherExam) {
+                                    // Chế độ giấu đáp án: Chỉ highlight cái đã chọn
+                                    if (isSelected) buttonClass = 'bg-brand-primary/10 border-brand-primary ring-2 ring-brand-primary/20 text-brand-primary';
+                                    else buttonClass = 'opacity-50 grayscale border-slate-100';
+                                } else {
+                                    // Chế độ luyện tập thường: Hiện xanh/đỏ
+                                    if (isCorrect) buttonClass = 'bg-green-50 border-green-500 ring-2 ring-green-200';
+                                    else if (isSelected) buttonClass = 'bg-red-50 border-red-500 ring-2 ring-red-200';
+                                    else buttonClass = 'opacity-50 grayscale border-slate-100';
+                                }
                             }
+
                             return (
                                  <button
                                     key={index} onClick={() => handleAnswerSelect(option)} disabled={isAnswered}
                                     className={`w-full text-left flex items-start p-5 rounded-2xl border-2 transition-all duration-200 ${buttonClass}`}
                                 >
-                                    <span className={`text-lg font-black mr-4 ${isAnswered && isCorrect ? 'text-green-600' : 'text-slate-400'}`}>{optionLabel}.</span>
+                                    <span className={`text-lg font-black mr-4 ${isAnswered && !isTeacherExam && isCorrect ? 'text-green-600' : 'text-slate-400'}`}>{optionLabel}.</span>
                                     <span className="text-lg text-slate-700">{option}</span>
                                 </button>
                             );
@@ -275,6 +318,16 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                     {quizData.essayQuestions.map((q, i) => (
                         <div key={i} className="mb-4 last:mb-0 p-4 bg-amber-50/50 rounded-xl border border-amber-100">
                             <p className="font-bold text-slate-700 text-sm mb-1">Câu {i + 1}:</p>
+                            {/* Hiển thị ảnh minh họa cho câu tự luận */}
+                            {q.image && (
+                                <div className="mb-3">
+                                    <img 
+                                        src={q.image} 
+                                        alt="Hình minh họa" 
+                                        className="max-h-64 object-contain rounded-lg border border-amber-200"
+                                    />
+                                </div>
+                            )}
                             <p className="text-slate-800">{q.question}</p>
                         </div>
                     ))}

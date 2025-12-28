@@ -1,5 +1,6 @@
 
 export interface DigitalCompetency {
+    domain: string;
     code: string;
     description: string;
 }

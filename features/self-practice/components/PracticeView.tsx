@@ -139,6 +139,17 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
 
                 {/* Content Section */}
                 <div className="p-6">
+                    {/* Illustration */}
+                    {currentQuestion.image && (
+                        <div className="mb-6 flex justify-center">
+                            <img 
+                                src={currentQuestion.image} 
+                                alt="Hình minh họa" 
+                                className="max-h-64 object-contain rounded-lg border border-slate-200"
+                            />
+                        </div>
+                    )}
+
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-8 leading-snug">
                         {currentQuestion.question}
                     </h2>

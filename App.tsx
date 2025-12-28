@@ -152,11 +152,13 @@ const AppContent: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  
   useEffect(() => { setIsSidebarOpen(false); }, [currentView]);
   useEffect(() => {
     if (isLoading) return;
     if (user && (currentView === 'login' || currentView === 'admin-login')) {
-      const isAdmin = profile?.role === 'admin' || user.user_metadata?.role === 'admin';
+      // Ưu tiên check role từ profile trước vì nó chính xác hơn metadata
+      const isAdmin = profile?.role === 'admin' || (!profile && user.user_metadata?.role === 'admin');
       if (isAdmin) navigate('admin-dashboard');
       else navigate('home');
     }
@@ -190,9 +192,24 @@ const AppContent: React.FC = () => {
     if (currentView === 'admin-login') return <AdminLoginView onLoginSuccess={() => {}} />;
     return <LoginView onLoginSuccess={() => {}} />;
   }
+  
+  // LOGIC ĐIỀU HƯỚNG QUAN TRỌNG:
+  // 1. Lấy role và status. Ưu tiên profile (DB) hơn metadata (Auth).
   const role = profile?.role || user.user_metadata?.role;
   const status = profile?.status || (role === 'teacher' ? 'pending' : 'active');
-  if (role === 'teacher' && status === 'pending') return <TeacherPendingView />;
+  
+  // 2. Chỉ hiện TeacherPendingView nếu:
+  // - Role là Teacher VÀ Status là Pending
+  // - VÀ QUAN TRỌNG: Role trong Profile KHÔNG phải là admin (đề phòng metadata sai)
+  // - VÀ Profile KHÔNG phải là active (đề phòng metadata sai)
+  if (role === 'teacher' && status === 'pending') {
+      // Double check: Nếu profile đã load và xác nhận là admin hoặc active, thì bỏ qua pending view
+      if (profile?.role === 'admin' || profile?.status === 'active') {
+          // Cho phép render view bình thường
+      } else {
+          return <TeacherPendingView />;
+      }
+  }
 
   return (
     <div className="flex h-screen w-full bg-transparent overflow-hidden">

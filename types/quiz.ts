@@ -49,11 +49,13 @@ export interface QuizQuestion {
   correctAnswer: string;
   explanation: string;
   topics?: string[];
+  image?: string; // Base64 string for question illustration
 }
 
 export interface EssayQuestion {
   question: string;
   sampleAnswer: string;
+  image?: string; // Base64 string for question illustration
 }
 
 export interface Quiz {
