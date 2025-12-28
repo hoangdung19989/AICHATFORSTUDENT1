@@ -8,7 +8,7 @@ import type { Quiz, MockExamSubject, TestGrade } from '../../../types/index';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
-import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ClockIcon, PencilSquareIcon, ExclamationTriangleIcon } from '../../../components/icons';
+import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ClockIcon, PencilSquareIcon, ExclamationTriangleIcon, DocumentTextIcon } from '../../../components/icons';
 
 interface MockExamViewProps {
     subject: MockExamSubject;
@@ -231,8 +231,22 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
             
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
                 <div className="px-6 pt-6 pb-2">
-                    <div className="flex justify-between items-center text-sm font-medium mb-4">
-                         <span className="text-slate-500 font-bold uppercase tracking-wider">{quizData.title || 'ĐỀ THI THỬ'}</span>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                         <div className="flex flex-col">
+                             <span className="text-slate-500 font-bold uppercase tracking-wider text-xs sm:text-sm">{quizData.title || 'ĐỀ THI THỬ'}</span>
+                             {/* Show External Link Button if available */}
+                             {quizData.externalLink && (
+                                <a 
+                                    href={quizData.externalLink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center mt-2 text-indigo-600 hover:text-indigo-800 font-bold text-xs"
+                                >
+                                    <DocumentTextIcon className="h-4 w-4 mr-1" />
+                                    Mở file đề gốc (PDF)
+                                </a>
+                             )}
+                         </div>
                          <div className={`flex items-center px-4 py-1.5 rounded-full text-white space-x-2 ${timeLeft < 60 ? 'bg-red-500 animate-pulse' : 'bg-slate-800'}`}>
                             <ClockIcon className="h-4 w-4" />
                             <span className="font-mono text-lg">{formatTime(timeLeft)}</span>

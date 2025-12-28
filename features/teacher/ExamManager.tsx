@@ -18,12 +18,14 @@ import {
     TrashIcon,
     PlusIcon,
     PhotoIcon,
-    ArrowRightIcon
+    ArrowRightIcon,
+    DocumentTextIcon
 } from '../../components/icons';
 // @ts-ignore
 import mammoth from 'https://esm.sh/mammoth';
 
-const ALL_SUBJECTS = ["Toán học", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "GDCD"];
+// FIX: Tên môn học phải khớp chính xác với MOCK_EXAM_SUBJECTS trong data/subjects.ts để học sinh có thể filter thấy
+const ALL_SUBJECTS = ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "GDCD"];
 const ALL_GRADES = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"];
 
 interface ExamVariant {
@@ -46,6 +48,7 @@ const ExamManager: React.FC = () => {
     const [subject, setSubject] = useState(ALL_SUBJECTS[0]);
     const [grade, setGrade] = useState(ALL_GRADES[0]);
     const [deadline, setDeadline] = useState('');
+    const [externalLink, setExternalLink] = useState(''); // NEW: Link đề gốc
     const [uploadedFile, setUploadedFile] = useState<{ file: File, base64?: string, text?: string } | null>(null);
     
     // Editor Data
@@ -89,11 +92,6 @@ const ExamManager: React.FC = () => {
                 setMyExams(data || []);
             } catch (fallbackErr: any) {
                 console.error("Error fetching exams (fallback failed):", fallbackErr);
-                let msg = "Lỗi không xác định";
-                if (typeof fallbackErr === 'string') msg = fallbackErr;
-                else if (fallbackErr.message) msg = fallbackErr.message;
-                // Only alert if it's a critical failure to fetch any data
-                // alert("Không thể tải danh sách đề thi: " + msg); 
             }
         } finally {
             setIsLoading(false);
@@ -126,8 +124,14 @@ const ExamManager: React.FC = () => {
     };
 
     const handleParse = async () => {
-        if (!uploadedFile || !title || !deadline) {
-            alert("Vui lòng nhập đủ thông tin (Tên đợt thi, Hạn nộp) và tải file đề lên.");
+        // Chỉ bắt buộc uploadedFile nếu chưa nhập externalLink HOẶC cần AI parse
+        // Ở đây ta bắt buộc uploadedFile ĐỂ AI PARSE, dù có link hay không
+        if (!uploadedFile) {
+            alert("Vui lòng tải file đề thi lên để AI có thể trích xuất câu hỏi.");
+            return;
+        }
+        if (!title || !deadline) {
+            alert("Vui lòng nhập đủ thông tin (Tên đợt thi, Hạn nộp).");
             return;
         }
         setIsLoading(true);
@@ -227,12 +231,13 @@ const ExamManager: React.FC = () => {
                 finalVariants = [{ code: 'GỐC', questions: questions }];
             }
 
-            // Prepare payload
+            // Prepare payload - NEW: Add externalLink
             const rawData = {
                 questions: questions, 
                 essayQuestions: essayQuestions,
                 variants: finalVariants,
-                isShuffled: !!finalVariants && finalVariants.length > 1
+                isShuffled: !!finalVariants && finalVariants.length > 1,
+                externalLink: externalLink // Lưu link đề gốc vào JSON
             };
 
             // 2. SANITIZATION: Remove 'undefined' values (Supabase JSONB prohibits undefined)
@@ -266,6 +271,7 @@ const ExamManager: React.FC = () => {
             setStep(1);
             setTitle('');
             setDeadline('');
+            setExternalLink('');
             setQuestions([]);
             setEssayQuestions([]);
             setUploadedFile(null);
@@ -278,18 +284,44 @@ const ExamManager: React.FC = () => {
         } catch (err: any) {
             console.error("Lỗi lưu đề:", err);
             
-            // 4. ROBUST ERROR MESSAGE EXTRACTION
-            let errorMsg = "Lỗi hệ thống không xác định";
+            let finalMessage = "Đã xảy ra lỗi không xác định";
+
             if (typeof err === 'string') {
-                errorMsg = err;
-            } else if (err && typeof err === 'object') {
-                if (err.message) errorMsg = err.message;
-                else if (err.error_description) errorMsg = err.error_description;
-                else if (err.details) errorMsg = err.details;
-                else errorMsg = JSON.stringify(err);
+                finalMessage = err;
+            } else if (err instanceof Error) {
+                finalMessage = err.message;
+            } else if (typeof err === 'object' && err !== null) {
+                // Xử lý lỗi từ Supabase (thường có thuộc tính message, details, hint, code)
+                if (typeof err.message === 'string') {
+                    finalMessage = err.message;
+                    if (err.details) finalMessage += ` (${err.details})`;
+                    if (err.hint) finalMessage += `\nGợi ý: ${err.hint}`;
+                } else if (typeof err.error_description === 'string') {
+                    finalMessage = err.error_description;
+                } else {
+                    // Nếu là object lạ, thử stringify
+                    try {
+                        const json = JSON.stringify(err, null, 2);
+                        // Nếu là Error object thì stringify sẽ ra {}, lúc đó dùng String(err) hoặc message mặc định
+                        if (json === '{}' || json === '[]') {
+                             finalMessage = String(err);
+                        } else {
+                             finalMessage = json;
+                        }
+                    } catch (e) {
+                        finalMessage = "Lỗi không thể đọc chi tiết (Lỗi đối tượng phức tạp)";
+                    }
+                }
+            } else {
+                finalMessage = String(err);
+            }
+
+            // Chặn tuyệt đối chuỗi "[object Object]"
+            if (String(finalMessage).includes("[object Object]")) {
+                finalMessage = "Lỗi hệ thống (Chi tiết trong Console)";
             }
             
-            alert(`Lỗi lưu đề: ${errorMsg}`);
+            alert(`Lỗi lưu đề: ${finalMessage}`);
         } finally {
             setIsLoading(false);
         }
@@ -443,8 +475,24 @@ const ExamManager: React.FC = () => {
                             <input type="datetime-local" className="w-full p-4 border rounded-2xl bg-slate-50 outline-none font-medium" value={deadline} onChange={e => setDeadline(e.target.value)} />
                         </div>
 
+                        {/* NEW: External Link Input */}
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">File đề thi (PDF/Ảnh/Word)</label>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Link đề gốc (Google Drive/Dropbox)</label>
+                            <div className="flex items-center bg-slate-50 rounded-2xl border px-3">
+                                <DocumentTextIcon className="h-5 w-5 text-slate-400 mr-2" />
+                                <input 
+                                    type="url" 
+                                    className="w-full p-4 bg-transparent outline-none font-medium text-sm" 
+                                    placeholder="Dán link file đề tại đây (để học sinh xem khi làm bài)..." 
+                                    value={externalLink} 
+                                    onChange={e => setExternalLink(e.target.value)} 
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 italic ml-2">Học sinh có thể mở link này để xem đề bài gốc nếu cần đối chiếu hình ảnh/bảng biểu.</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Tải file đề (Để AI đọc)</label>
                             <div className="relative border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center hover:bg-slate-50 transition-colors">
                                 <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx,.png,.jpg,.jpeg" onChange={handleFileChange} />
                                 {uploadedFile ? (
@@ -455,7 +503,8 @@ const ExamManager: React.FC = () => {
                                 ) : (
                                     <div className="text-slate-400">
                                         <CloudArrowUpIcon className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                                        <span className="text-sm font-medium">Nhấn để tải file lên</span>
+                                        <span className="text-sm font-medium">Nhấn để tải file (PDF/Word/Ảnh)</span>
+                                        <p className="text-[10px] mt-1 opacity-70">File này chỉ dùng để AI tạo câu hỏi, KHÔNG lưu trữ trên server.</p>
                                     </div>
                                 )}
                             </div>

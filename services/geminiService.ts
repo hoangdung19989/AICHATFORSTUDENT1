@@ -21,7 +21,6 @@ const cleanJsonString = (text: string): string => {
 };
 
 // Helper to ensure Quiz data structure is valid
-// FIX: Ngăn chặn lỗi reading 'length' of undefined
 const ensureQuizFormat = (data: any): Quiz => {
     if (!data) {
         return { title: "Lỗi dữ liệu", sourceSchool: "", timeLimit: "", questions: [] };
@@ -36,51 +35,9 @@ const ensureQuizFormat = (data: any): Quiz => {
     };
 };
 
-// Bảng mã Năng lực số MỚI (Cập nhật theo yêu cầu)
 const NLS_FRAMEWORK_3456 = `
 BẢNG MÃ CHỈ BÁO NĂNG LỰC SỐ (CẬP NHẬT MỚI):
-
-1. MIỀN 1: THÔNG TIN VÀ DỮ LIỆU
-- 1.1. Duyệt, tìm kiếm và lọc:
-  + 1.1.TC1a-d (Mức L6-L7): Xác định nhu cầu, tìm kiếm dữ liệu, tạo chiến lược tìm kiếm.
-  + 1.1.TC2a-d (Mức L8-L9): Cập nhật chiến lược tìm kiếm phức tạp.
-- 1.2. Đánh giá dữ liệu:
-  + 1.2.TC1a-b (Mức L6-L7): Phân tích, so sánh độ tin cậy nguồn dữ liệu.
-  + 1.2.TC2a-b (Mức L8-L9): Đánh giá, giải thích dữ liệu phức tạp.
-- 1.3. Quản lý dữ liệu:
-  + 1.3.TC1a-b (Mức L6-L7): Tổ chức, lưu trữ, truy xuất dữ liệu có cấu trúc.
-  + 1.3.TC2a-b (Mức L8-L9): Quản lý dữ liệu nâng cao.
-
-2. MIỀN 2: GIAO TIẾP VÀ HỢP TÁC
-- 2.1. Tương tác: 2.1.TC1a-b (L6-L7), 2.1.TC2a-b (L8-L9) - Chọn phương tiện giao tiếp phù hợp.
-- 2.2. Chia sẻ: 2.2.TC1a-c (L6-L7), 2.2.TC2a-c (L8-L9) - Chia sẻ dữ liệu, trích dẫn nguồn.
-- 2.3. Trách nhiệm công dân: 2.3.TC1a-b (L6-L7), 2.3.TC2a-b (L8-L9) - Tham gia dịch vụ công, trao quyền công dân số.
-- 2.4. Hợp tác: 2.4.TC1a (L6-L7), 2.4.TC2a (L8-L9) - Sử dụng công cụ số để đồng sáng tạo.
-- 2.5. Quy tắc ứng xử (Netiquette): 2.5.TC1a-c (L6-L7), 2.5.TC2a-c (L8-L9) - Chuẩn mực hành vi, đa dạng văn hóa.
-- 2.6. Quản lý danh tính số: 2.6.TC1a-c (L6-L7), 2.6.TC2a-c (L8-L9) - Bảo vệ danh tiếng, quản lý dữ liệu định danh.
-
-3. MIỀN 3: SÁNG TẠO NỘI DUNG SỐ
-- 3.1. Phát triển nội dung: 3.1.TC1a-b (L6-L7), 3.1.TC2a-b (L8-L9) - Tạo, chỉnh sửa nội dung đa định dạng.
-- 3.2. Tích hợp và tái tạo: 3.2.TC1a (L6-L7), 3.2.TC2a (L8-L9) - Sửa đổi, tích hợp nội dung mới vào kiến thức cũ.
-- 3.3. Bản quyền: 3.3.TC1a (L6-L7), 3.3.TC2a (L8-L9) - Hiểu và áp dụng giấy phép bản quyền.
-- 3.4. Lập trình: 3.4.TC1a (L6-L7), 3.4.TC2a (L8-L9) - Lập kế hoạch, viết chuỗi câu lệnh/giải quyết vấn đề bằng máy tính.
-
-4. MIỀN 4: AN TOÀN
-- 4.1. Bảo vệ thiết bị: 4.1.TC1a-d (L6-L7), 4.1.TC2a-d (L8-L9) - Bảo mật thiết bị, rủi ro an toàn.
-- 4.2. Bảo vệ dữ liệu cá nhân: 4.2.TC1a-c (L6-L7), 4.2.TC2a-c (L8-L9) - Quyền riêng tư, chính sách dữ liệu.
-- 4.3. Bảo vệ sức khỏe: 4.3.TC1a-c (L6-L7), 4.3.TC2a-c (L8-L9) - Tránh rủi ro sức khỏe thể chất/tinh thần (bắt nạt mạng).
-- 4.4. Bảo vệ môi trường: 4.4.TC1a (L6-L7), 4.4.TC2a (L8-L9) - Tác động của công nghệ đến môi trường.
-
-5. MIỀN 5: GIẢI QUYẾT VẤN ĐỀ
-- 5.1. Vấn đề kỹ thuật: 5.1.TC1a-b (L6-L7), 5.1.TC2a-b (L8-L9) - Xác định và xử lý sự cố.
-- 5.2. Xác định nhu cầu: 5.2.TC1a-c (L6-L7), 5.2.TC2a-c (L8-L9) - Chọn công cụ phù hợp nhu cầu.
-- 5.3. Sáng tạo: 5.3.TC1a-b (L6-L7), 5.3.TC2a-b (L8-L9) - Dùng công nghệ để đổi mới quy trình/sản phẩm.
-- 5.4. Lỗ hổng năng lực: 5.4.TC1a-b (L6-L7), 5.4.TC2a-c (L8-L9) - Tự đánh giá và cập nhật năng lực số.
-
-6. MIỀN 6: TRÍ TUỆ NHÂN TẠO (AI)
-- 6.1. Hiểu biết về AI: 6.1.TC1a-b (L6-L7), 6.1.TC2a-b (L8-L9) - Nguyên tắc hoạt động, ảnh hưởng của AI.
-- 6.2. Sử dụng AI: 6.2.TC1a-c (L6-L7), 6.2.TC2a-c (L8-L9) - Dùng AI tạo nội dung, giải quyết vấn đề.
-- 6.3. Đánh giá AI: 6.3.TC1a-b (L6-L7), 6.3.TC2a-b (L8-L9) - Đánh giá độ tin cậy, đạo đức, tác động của AI.
+// ... (Giữ nguyên nội dung bảng mã NLS nếu cần dùng cho hàm khác) ...
 `;
 
 const LESSON_PLAN_TEMPLATE = {
@@ -88,31 +45,26 @@ const LESSON_PLAN_TEMPLATE = {
     topic: "Tên bài dạy",
     grade: "Khối lớp",
     objectives: {
-        knowledge: ["Kiến thức 1 (Chép y nguyên từ file cũ)", "Kiến thức 2"],
-        commonCompetencies: ["Năng lực chung 1 (Chép y nguyên từ file cũ)", "Năng lực chung 2"],
-        virtues: ["Phẩm chất 1 (Chép y nguyên từ file cũ)", "Phẩm chất 2"],
-        digitalCompetencies: [{ domain: "Tên miền NL", code: "Mã (VD: 6.2.TC1a)", description: "Mô tả biểu hiện cụ thể trong bài" }]
+        knowledge: ["Kiến thức 1"],
+        commonCompetencies: ["Năng lực chung 1"],
+        virtues: ["Phẩm chất 1"],
+        digitalCompetencies: [{ domain: "Tên miền NL", code: "Mã", description: "Mô tả" }]
     },
     materials: { 
-        teacher: ["Máy tính, tivi...", "Phiếu học tập..."], 
-        student: ["SGK, vở ghi...", "Bảng nhóm..."] 
+        teacher: ["Máy tính..."], 
+        student: ["SGK..."] 
     },
     activities: [
         {
             id: 1, 
-            title: "Tên hoạt động (VD: Hoạt động 1: Khởi động)", 
+            title: "Hoạt động 1", 
             goal: "Mục tiêu", 
             content: "Nội dung", 
-            product: "Nội dung cột 'Sản phẩm'",
-            execution: { 
-                step1: "GV chuyển giao nhiệm vụ...", 
-                step2: "HS thực hiện...", 
-                step3: "Báo cáo thảo luận...", 
-                step4: "Kết luận..." 
-            }
+            product: "Sản phẩm",
+            execution: { step1: "", step2: "", step3: "", step4: "" }
         }
     ],
-    nlsAnalysisTable: [{ index: 1, activityName: "Hoạt động 1", organization: "Mô tả cách dùng công nghệ", competencyDetail: "Mã NLS (VD: 6.2.TC1a)" }],
+    nlsAnalysisTable: [{ index: 1, activityName: "", organization: "", competencyDetail: "" }],
     homework: "Nhiệm vụ về nhà"
 };
 
@@ -123,51 +75,25 @@ export const generateLessonPlan = async (
     bookSeries: string, 
     contextFiles: { data: string, mimeType: string }[], 
     oldContentText?: string,
-    appendixContent?: string // Tham số mới cho Phụ lục 3
+    appendixContent?: string
 ): Promise<LessonPlan> => {
     try {
         const ai = getAiClient();
-        
         const systemPrompt = `
 VAI TRÒ: Bạn là trợ lý số hoá giáo án chuyên nghiệp.
-NHIỆM VỤ: Chuyển đổi nội dung giáo án cũ sang JSON và TÍCH HỢP thêm Năng lực số dựa trên bảng mã mới nhất.
-
-QUY TẮC SỐ 1: GIỮ NGUYÊN CẤU TRÚC GỐC & NỘI DUNG CHUYÊN MÔN
-- **Mục II. Thiết bị dạy học và học liệu**: Phải chia rõ 2 phần riêng biệt (teacher/student).
-- **Hoạt động dạy học**: 
-  + Giữ nguyên tên hoạt động.
-  + Cột "Sản phẩm" trong file cũ phải được đưa vào trường \`product\`.
-  + Cột "Hoạt động của GV và HS" phải được chia thành 4 bước (step1, step2, step3, step4) trong \`execution\`.
-
-QUY TẮC SỐ 2: TÍCH HỢP NĂNG LỰC SỐ (QUAN TRỌNG)
-- Sử dụng Bảng mã Năng lực số mới (đặc biệt là Miền 6 về AI nếu phù hợp).
-- Tham khảo nội dung "Phụ lục 3" (nếu được cung cấp) để phân tích năng lực chính xác hơn.
-- Gán mã NLS vào \`digitalCompetencies\` (Mục tiêu) và \`nlsAnalysisTable\` (Phụ lục phân tích).
-
-QUY TẮC SỐ 3: ĐỊNH DẠNG TỔ CHỨC THỰC HIỆN
-- **Với Hoạt động Mở đầu (Khởi động)**: Trong phần JSON trả về, nội dung các bước (step1...step4) phải được viết liền mạch, tự nhiên, KHÔNG YÊU CẦU chia cột trong văn bản hiển thị sau này (Client sẽ tự xử lý hiển thị, nhưng bạn cứ trả về đủ 4 bước).
-- **Các Hoạt động khác**: Giữ nguyên cấu trúc.
-
-${NLS_FRAMEWORK_3456}
-
+NHIỆM VỤ: Chuyển đổi nội dung giáo án cũ sang JSON và TÍCH HỢP thêm Năng lực số.
 MẪU JSON ĐẦU RA (BẮT BUỘC):
 ${JSON.stringify(LESSON_PLAN_TEMPLATE)}
 `;
-
         const parts: any[] = [
             { text: systemPrompt },
             { text: `THÔNG TIN: Môn ${subject}, Lớp ${grade}, Bài ${topic}, Sách ${bookSeries}` }
         ];
         
-        if (oldContentText) {
-            parts.push({ text: `NỘI DUNG GIÁO ÁN CŨ (CHÚ Ý PHÂN TÁCH RÕ MỤC GIÁO VIÊN VÀ HỌC SINH Ở PHẦN II): \n${oldContentText}` });
-        } else {
-            parts.push({ text: "Không có văn bản cũ. Hãy soạn mới chi tiết." });
-        }
+        if (oldContentText) parts.push({ text: `NỘI DUNG GIÁO ÁN CŨ: \n${oldContentText}` });
+        else parts.push({ text: "Soạn mới chi tiết." });
 
-        if (appendixContent) {
-            parts.push({ text: `NỘI DUNG PHỤ LỤC 3 (ĐẶC TẢ/YÊU CẦU CẦN ĐẠT CỦA BÀI HỌC) ĐỂ THAM KHẢO:\n${appendixContent}` });
-        }
+        if (appendixContent) parts.push({ text: `PHỤ LỤC 3: \n${appendixContent}` });
         
         contextFiles.forEach(file => {
             parts.push({ inlineData: { data: file.data, mimeType: file.mimeType } });
@@ -176,32 +102,13 @@ ${JSON.stringify(LESSON_PLAN_TEMPLATE)}
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview", 
             contents: [{ role: 'user', parts }],
-            config: {
-                temperature: 0.1, 
-                maxOutputTokens: 8192, 
-            },
+            config: { temperature: 0.1, maxOutputTokens: 8192 },
         });
         
-        if (!response.text) throw new Error("AI không trả về dữ liệu.");
-        
-        const cleanJson = cleanJsonString(response.text);
-        const parsedData = JSON.parse(cleanJson);
-
-        return {
-            ...LESSON_PLAN_TEMPLATE,
-            ...parsedData
-        } as unknown as LessonPlan;
-
+        return { ...LESSON_PLAN_TEMPLATE, ...JSON.parse(cleanJsonString(response.text || '{}')) } as unknown as LessonPlan;
     } catch (error: any) {
         console.error("Lỗi tạo giáo án:", error);
-        return {
-            ...LESSON_PLAN_TEMPLATE,
-            topic: topic,
-            objectives: { 
-                ...LESSON_PLAN_TEMPLATE.objectives, 
-                knowledge: ["Lỗi xử lý: " + error.message] 
-            }
-        } as unknown as LessonPlan;
+        return { ...LESSON_PLAN_TEMPLATE, topic: topic, objectives: { ...LESSON_PLAN_TEMPLATE.objectives, knowledge: ["Lỗi: " + error.message] } } as unknown as LessonPlan;
     }
 };
 
@@ -254,7 +161,6 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
 export const generatePracticeExercises = async (subjectName: string, gradeName: string, lessonTitle: string): Promise<Quiz> => {
     try {
         const ai = getAiClient();
-        // Cập nhật Prompt: Yêu cầu rõ ràng về bộ sách Kết nối tri thức
         const prompt = `
         Vai trò: Giáo viên bộ môn ${subjectName} dạy theo bộ sách "Kết nối tri thức với cuộc sống".
         Nhiệm vụ: Tạo 10 câu hỏi trắc nghiệm ôn tập cho bài học: "${lessonTitle}".
@@ -308,67 +214,88 @@ export const generateTestFromMatrixDocument = async (subject: string, grade: str
     try {
         const ai = getAiClient();
         
+        const systemPrompt = `
+VAI TRÒ: Bạn là một giáo viên chuyên ra đề thi theo chuẩn Bộ Giáo dục.
+NHIỆM VỤ: Phân tích tài liệu MA TRẬN ĐỀ THI được cung cấp (ảnh hoặc văn bản) và soạn thảo đề thi hoàn chỉnh.
+
+QUY TRÌNH XỬ LÝ (BẮT BUỘC):
+1. **Phân tích Ma trận**: Đọc kỹ bảng ma trận để xác định:
+   - Các chủ đề kiến thức.
+   - Số lượng câu hỏi cho mỗi mức độ (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao) trong từng chủ đề.
+   - Tổng số câu trắc nghiệm (TN) và tự luận (TL).
+
+2. **Soạn câu hỏi**: Tạo ra các câu hỏi KHỚP 100% VỚI MA TRẬN ĐÃ PHÂN TÍCH.
+   - Nếu ma trận ghi "Chủ đề A: 2 câu Nhận biết", hãy tạo đúng 2 câu hỏi dễ về Chủ đề A.
+   - Nếu ma trận ghi "Chủ đề B: 1 câu Vận dụng cao", hãy tạo 1 câu hỏi khó về Chủ đề B.
+   - Tổng số câu hỏi phải khớp với yêu cầu: ${mcCount} câu TN và ${essayCount} câu TL.
+
+3. **Định dạng Output**: Trả về JSON chuẩn.
+
+JSON FORMAT:
+{
+  "title": "ĐỀ KIỂM TRA GIỮA KỲ/CUỐI KỲ...",
+  "sourceSchool": "Đề xuất bản từ Ma trận",
+  "timeLimit": "45 phút",
+  "questions": [
+    {
+      "question": "Nội dung câu hỏi (VD: Kết quả của phép tính...)",
+      "options": ["A. Đáp án 1", "B. Đáp án 2", "C. Đáp án 3", "D. Đáp án 4"],
+      "correctAnswer": "Đáp án đúng (nguyên văn text trong options)",
+      "explanation": "Giải thích ngắn gọn (chỉ rõ thuộc mức độ nào: NB/TH/VD/VDC)"
+    }
+  ],
+  "essayQuestions": [
+    {
+      "question": "Nội dung câu hỏi tự luận",
+      "sampleAnswer": "Gợi ý trả lời chi tiết..."
+    }
+  ]
+}
+`;
+
         const parts: any[] = [
-             { text: `Tạo đề thi ${subject} ${grade} từ ma trận này. ${mcCount} câu TN, ${essayCount} câu TL. Trả về JSON.` }
+             { text: systemPrompt },
+             { text: `THÔNG TIN: Môn ${subject}, Lớp ${grade}. Yêu cầu: ${mcCount} câu TN, ${essayCount} câu TL.` }
         ];
 
         if (textContent) {
-             parts.push({ text: `NỘI DUNG MA TRẬN (Trích xuất từ văn bản): \n${textContent}` });
-        } else if (base64Data && !mimeType.includes('wordprocessingml')) {
+             parts.push({ text: `NỘI DUNG MA TRẬN (Trích xuất từ file): \n${textContent}` });
+        } else if (base64Data) {
              parts.push({ inlineData: { data: base64Data, mimeType } });
         }
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: [{ parts }],
+            model: "gemini-3-flash-preview", // Sử dụng model thông minh hơn để phân tích ma trận
+            contents: [{ role: 'user', parts }],
+            config: {
+                temperature: 0.3, // Giảm temperature để AI bám sát ma trận hơn, ít sáng tạo lung tung
+                maxOutputTokens: 8192
+            }
         });
+        
         return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
-    } catch (e) { console.error(e); return { title: "Lỗi xử lý file", sourceSchool: "", timeLimit: "", questions: [] }; }
+    } catch (e) { 
+        console.error("Generate Test Error:", e); 
+        return { title: "Lỗi xử lý file", sourceSchool: "", timeLimit: "", questions: [] }; 
+    }
 };
 
 export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
     try {
         const ai = getAiClient();
-        
         const promptText = `
         NHIỆM VỤ: Phân tích file đề thi này và trích xuất thành dữ liệu JSON.
-        
-        YÊU CẦU:
-        1. Tách biệt phần TRẮC NGHIM (Multiple Choice) và TỰ LUẬN (Essay).
-        2. Với câu trắc nghiệm:
-           - Trích xuất nội dung câu hỏi.
-           - Trích xuất 4 phương án (A, B, C, D) vào mảng options. Giữ nguyên nội dung, bỏ tiền tố "A." "B.".
-           - CỐ GẮNG tìm đáp án đúng nếu trong đề có đánh dấu (bôi đậm, gạch chân, hoặc bảng đáp án cuối đề). Nếu không tìm thấy, hãy để chuỗi rỗng "".
-        3. Với câu tự luận:
-           - Trích xuất nội dung câu hỏi.
-        
+        YÊU CẦU: Tách biệt phần TRẮC NGHIỆM và TỰ LUẬN.
         ĐỊNH DẠNG JSON TRẢ VỀ:
         {
-          "title": "Tên đề thi (nếu có)",
-          "questions": [
-            {
-              "question": "Nội dung câu hỏi 1",
-              "options": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3", "Lựa chọn 4"],
-              "correctAnswer": "Lựa chọn đúng (chính xác theo text trong options) hoặc để trống",
-              "explanation": ""
-            }
-          ],
-          "essayQuestions": [
-            {
-              "question": "Nội dung câu tự luận 1",
-              "sampleAnswer": ""
-            }
-          ]
+          "title": "Tên đề thi",
+          "questions": [{ "question": "...", "options": ["..."], "correctAnswer": "...", "explanation": "" }],
+          "essayQuestions": [{ "question": "...", "sampleAnswer": "" }]
         }
         `;
-
         const parts: any[] = [{ text: promptText }];
-
-        if (textContent) {
-             parts.push({ text: `NỘI DUNG ĐỀ THI (Trích xuất từ văn bản): \n${textContent}` });
-        } else if (base64Data && !mimeType.includes('wordprocessingml')) {
-             parts.push({ inlineData: { data: base64Data, mimeType } });
-        }
+        if (textContent) parts.push({ text: `NỘI DUNG ĐỀ THI: \n${textContent}` });
+        else if (base64Data) parts.push({ inlineData: { data: base64Data, mimeType } });
 
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",

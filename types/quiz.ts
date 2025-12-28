@@ -65,4 +65,5 @@ export interface Quiz {
   questions: QuizQuestion[];
   essayQuestions?: EssayQuestion[];
   semester?: string;
+  externalLink?: string; // Link đến file gốc (PDF/Word trên Drive)
 }

@@ -10,15 +10,14 @@ import {
     CloudArrowUpIcon, 
     CheckCircleIcon, 
     ArrowDownTrayIcon, 
-    EyeIcon,
     ArrowLeftIcon,
     DocumentTextIcon,
-    ArrowPathIcon
+    PrinterIcon
 } from '../../components/icons';
 // @ts-ignore
 import mammoth from 'https://esm.sh/mammoth';
 
-const SUBJECTS_LIST = ["Toán học", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ"];
+const SUBJECTS_LIST = ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "GDCD"];
 const GRADES = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"];
 
 const TestGenerator: React.FC = () => {
@@ -41,8 +40,12 @@ const TestGenerator: React.FC = () => {
             const reader = new FileReader();
             reader.onload = async (ev) => {
                 const arrayBuffer = ev.target?.result as ArrayBuffer;
-                const conv = await mammoth.extractRawText({ arrayBuffer });
-                setUploadedFile({ file, text: conv.value });
+                try {
+                    const conv = await mammoth.extractRawText({ arrayBuffer });
+                    setUploadedFile({ file, text: conv.value });
+                } catch (e) {
+                    alert("Lỗi đọc file Word.");
+                }
             };
             reader.readAsArrayBuffer(file);
         } else {
@@ -60,23 +63,162 @@ const TestGenerator: React.FC = () => {
         try {
             const base64 = uploadedFile.base64 || "";
             const mimeType = uploadedFile.file.type || 'application/pdf';
-            // Pass text content for docx files
             const quiz = await generateTestFromMatrixDocument(subject, grade, base64, mimeType, mcCount, essayCount, uploadedFile.text);
             setResult(quiz);
         } catch (err: any) { setError(err.message); }
         finally { setIsGenerating(false); }
     };
 
-    if (isGenerating) return <div className="h-screen flex items-center justify-center"><LoadingSpinner text="Đang tạo đề từ ma trận..." /></div>;
+    const downloadAsDoc = () => {
+        const content = document.getElementById('generated-test-content');
+        if (!content) return;
+        
+        const header = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>${result?.title || 'De Thi'}</title>
+                <style>
+                    body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.3; }
+                    .header-table { width: 100%; margin-bottom: 20px; border-collapse: collapse; border: none; }
+                    .header-table td { border: none; vertical-align: top; text-align: center; }
+                    .question-block { margin-bottom: 12px; page-break-inside: avoid; }
+                    .options-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 5px; margin-left: 20px; }
+                    .option-item { margin-bottom: 4px; }
+                    .essay-block { margin-bottom: 15px; page-break-inside: avoid; }
+                    .bold { font-weight: bold; }
+                    .italic { font-style: italic; }
+                    .uppercase { text-transform: uppercase; }
+                </style>
+            </head>
+            <body>
+        `;
+        const footer = "</body></html>";
+        
+        // Clean up HTML for Word: Remove Tailwind classes if they cause issues, but keeping simple styles inline is better
+        // Note: The structure inside #generated-test-content is already using inline styles for the most part
+        const sourceHTML = header + content.innerHTML + footer;
+        
+        const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `De_Thi_${subject.replace(/\s+/g, '_')}_${grade.replace(/\s+/g, '_')}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    if (isGenerating) return <div className="h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Đang phân tích ma trận..." subText="AI đang đối chiếu từng câu hỏi với ma trận đặc tả..." /></div>;
 
     if (result) {
         return (
-            <div className="container mx-auto max-w-5xl py-8">
-                <div className="bg-white rounded-3xl p-10 shadow-xl text-center">
-                    <CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold mb-6">Đã tạo đề thi thành công!</h2>
-                    <button onClick={() => setResult(null)} className="bg-brand-blue text-white px-8 py-3 rounded-xl font-bold">Tạo đề khác</button>
+            <div className="container mx-auto max-w-5xl py-8 animate-scale-in">
+                {/* Toolbar */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-4 justify-between items-center sticky top-4 z-50 no-print">
+                    <button onClick={() => setResult(null)} className="flex items-center text-slate-500 font-bold hover:text-slate-800 transition-colors">
+                        <ArrowLeftIcon className="h-5 w-5 mr-2" /> Tạo đề khác
+                    </button>
+                    <div className="flex gap-3">
+                        <button onClick={downloadAsDoc} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center shadow-lg hover:bg-emerald-700 transition-all">
+                            <ArrowDownTrayIcon className="h-5 w-5 mr-2" /> Tải file Word
+                        </button>
+                        <button onClick={() => window.print()} className="bg-brand-blue text-white px-5 py-2.5 rounded-xl font-bold flex items-center shadow-lg hover:bg-brand-blue-dark transition-all">
+                            <PrinterIcon className="h-5 w-5 mr-2" /> In đề
+                        </button>
+                    </div>
                 </div>
+
+                {/* Preview Area - Designed to look like A4 Paper */}
+                <div className="bg-gray-200 p-4 md:p-10 rounded-3xl overflow-auto">
+                    <div 
+                        id="generated-test-content" 
+                        className="bg-white shadow-2xl p-[2cm] text-black leading-normal border border-slate-300 mx-auto"
+                        style={{ 
+                            width: '210mm', 
+                            minHeight: '297mm', 
+                            fontFamily: '"Times New Roman", Times, serif', 
+                            fontSize: '13pt',
+                            lineHeight: '1.4' 
+                        }}
+                    >
+                        {/* Exam Header */}
+                        <table style={{ width: '100%', marginBottom: '20px', borderCollapse: 'collapse', border: 'none' }}>
+                            <tbody>
+                                <tr>
+                                    <td style={{ width: '40%', textAlign: 'center', verticalAlign: 'top', border: 'none' }}>
+                                        <p style={{ fontWeight: 'bold', textTransform: 'uppercase', margin: 0 }}>PHÒNG GD&ĐT .................</p>
+                                        <p style={{ fontWeight: 'bold', textTransform: 'uppercase', margin: 0 }}>TRƯỜNG THCS .................</p>
+                                        <div style={{ height: '1px', width: '40%', background: '#000', margin: '5px auto' }}></div>
+                                    </td>
+                                    <td style={{ width: '60%', textAlign: 'center', verticalAlign: 'top', border: 'none' }}>
+                                        <p style={{ fontWeight: 'bold', textTransform: 'uppercase', margin: 0 }}>ĐỀ KIỂM TRA GIỮA KỲ/CUỐI KỲ</p>
+                                        <p style={{ fontWeight: 'bold', textTransform: 'uppercase', margin: '5px 0' }}>NĂM HỌC 2024 - 2025</p>
+                                        <p style={{ margin: '5px 0', fontWeight: 'bold' }}>Môn: {subject.toUpperCase()} - Lớp: {grade.replace('Lớp ', '')}</p>
+                                        <p style={{ fontStyle: 'italic', margin: 0 }}>Thời gian làm bài: {result.timeLimit || '...'} phút</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <div style={{ textAlign: 'center', fontStyle: 'italic', marginBottom: '20px', fontSize: '11pt' }}>
+                            (Đề thi được biên soạn dựa trên Ma trận đặc tả: {uploadedFile?.file.name})
+                        </div>
+
+                        {/* Part I: Multiple Choice */}
+                        {result.questions && result.questions.length > 0 && (
+                            <div style={{ marginBottom: '20px' }}>
+                                <h3 style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>I. PHẦN TRẮC NGHIỆM ({mcCount} câu)</h3>
+                                {result.questions.map((q, idx) => (
+                                    <div key={idx} className="question-block" style={{ marginBottom: '12px', pageBreakInside: 'avoid' }}>
+                                        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                                            <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '5px' }}>Câu {idx + 1}:</span>
+                                            <span>{q.question}</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', paddingLeft: '20px', marginTop: '5px' }}>
+                                            {q.options.map((opt, oIdx) => (
+                                                <div key={oIdx} style={{ marginBottom: '2px' }}>
+                                                    <span style={{ fontWeight: 'bold' }}>{String.fromCharCode(65 + oIdx)}.</span> {opt.replace(/^[A-D]\.\s*/, '')}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Part II: Essay */}
+                        {result.essayQuestions && result.essayQuestions.length > 0 && (
+                            <div style={{ marginBottom: '20px', marginTop: '20px' }}>
+                                <h3 style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>II. PHẦN TỰ LUẬN ({essayCount} câu)</h3>
+                                {result.essayQuestions.map((q, idx) => (
+                                    <div key={idx} className="essay-block" style={{ marginBottom: '15px', pageBreakInside: 'avoid' }}>
+                                        <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                            Câu {(result.questions?.length || 0) + idx + 1}:
+                                        </p>
+                                        <p style={{ margin: 0 }}>{q.question}</p>
+                                        <div style={{ minHeight: '100px', border: '1px dashed #ccc', marginTop: '10px', padding: '10px', fontSize: '11pt', color: '#666', fontStyle: 'italic' }}>
+                                            (Đáp án gợi ý: {q.sampleAnswer || 'Học sinh trình bày...'})
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div style={{ textAlign: 'center', marginTop: '40px', fontWeight: 'bold' }}>--- HẾT ---</div>
+                        <div style={{ textAlign: 'center', fontStyle: 'italic', fontSize: '11pt' }}>Thí sinh không được sử dụng tài liệu. Cán bộ coi thi không giải thích gì thêm.</div>
+                    </div>
+                </div>
+                
+                <style>{`
+                    @media print {
+                        .no-print, header, aside { display: none !important; }
+                        body { background: white; margin: 0; padding: 0; }
+                        .container { max-width: 100%; padding: 0; margin: 0; }
+                        .bg-gray-200 { background: white !important; padding: 0 !important; }
+                        #generated-test-content { box-shadow: none !important; border: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+                    }
+                `}</style>
             </div>
         );
     }
@@ -86,36 +228,79 @@ const TestGenerator: React.FC = () => {
             <Breadcrumb items={[{ label: 'Công cụ giảng dạy', onClick: () => navigate('teacher-dashboard') }, { label: 'Tạo đề thi' }]} />
             <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100">
                 <h1 className="text-3xl font-black mb-8 uppercase text-brand-blue">Tạo đề thi từ Ma trận</h1>
+                
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-8 flex items-start">
+                    <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                        <DocumentTextIcon className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-blue-800 text-sm">Hướng dẫn quan trọng</h3>
+                        <p className="text-xs text-blue-700 mt-1">
+                            Tải lên ảnh hoặc file Word chứa <strong>Ma trận đặc tả</strong>. AI sẽ phân tích kỹ các mức độ (Nhận biết/Thông hiểu/Vận dụng) trong bảng để ra đề thi bám sát yêu cầu của bạn.
+                        </p>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-6 mb-8">
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Môn học</label>
-                        <select className="w-full p-4 border-2 rounded-2xl bg-slate-50" value={subject} onChange={e => setSubject(e.target.value)}>
+                        <select className="w-full p-4 border-2 rounded-2xl bg-slate-50 outline-none focus:border-brand-blue transition-all" value={subject} onChange={e => setSubject(e.target.value)}>
                             {SUBJECTS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Khối lớp</label>
-                        <select className="w-full p-4 border-2 rounded-2xl bg-slate-50" value={grade} onChange={e => setGrade(e.target.value)}>
+                        <select className="w-full p-4 border-2 rounded-2xl bg-slate-50 outline-none focus:border-brand-blue transition-all" value={grade} onChange={e => setGrade(e.target.value)}>
                             {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                         </select>
                     </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Số câu trắc nghiệm</label>
+                        <input type="number" min="0" className="w-full p-4 border-2 rounded-2xl bg-slate-50 outline-none focus:border-brand-blue transition-all font-bold text-center" value={mcCount} onChange={e => setMcCount(parseInt(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Số câu tự luận</label>
+                        <input type="number" min="0" className="w-full p-4 border-2 rounded-2xl bg-slate-50 outline-none focus:border-brand-blue transition-all font-bold text-center" value={essayCount} onChange={e => setEssayCount(parseInt(e.target.value) || 0)} />
+                    </div>
+                </div>
+
                 <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-4 border-dashed rounded-3xl p-12 text-center cursor-pointer transition-all mb-8 ${uploadedFile ? 'border-green-400 bg-green-50' : 'border-slate-100 hover:bg-slate-50'}`}
+                    className={`border-4 border-dashed rounded-3xl p-12 text-center cursor-pointer transition-all mb-8 ${uploadedFile ? 'border-green-400 bg-green-50' : 'border-slate-100 hover:bg-slate-50 hover:border-brand-blue'}`}
                 >
-                    <input type="file" ref={fileInputRef} className="hidden" accept=".docx,.pdf,.png,.jpg" onChange={handleFileChange} />
+                    <input type="file" ref={fileInputRef} className="hidden" accept=".docx,.pdf,.png,.jpg,.jpeg" onChange={handleFileChange} />
                     {uploadedFile ? (
-                        <p className="text-green-700 font-bold">{uploadedFile.file.name}</p>
+                        <div>
+                            <CheckCircleIcon className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                            <p className="text-green-700 font-bold">{uploadedFile.file.name}</p>
+                            <p className="text-xs text-green-600 mt-1">Nhấn để thay đổi file khác</p>
+                        </div>
                     ) : (
-                        <p className="text-slate-400">Tải lên file Ma trận & Đặc tả (.docx, .pdf, .png)</p>
+                        <div>
+                            <CloudArrowUpIcon className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                            <p className="text-slate-500 font-bold text-lg">Tải lên Ma trận (Ảnh/Word/PDF)</p>
+                            <p className="text-slate-400 text-sm mt-2">AI sẽ đọc bảng ma trận để ra đề.</p>
+                        </div>
                     )}
                 </div>
 
-                <button onClick={handleGenerate} disabled={!uploadedFile} className="w-full py-5 bg-brand-blue text-white rounded-2xl font-black text-xl disabled:opacity-50">
-                    BẮT ĐẦU TẠO ĐỀ
+                <button 
+                    onClick={handleGenerate} 
+                    disabled={!uploadedFile} 
+                    className="w-full py-5 bg-brand-blue text-white rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                    <PencilSquareIcon className="h-6 w-6 mr-3" />
+                    PHÂN TÍCH MA TRẬN & TẠO ĐỀ
                 </button>
+                
+                {error && (
+                    <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl text-center font-bold border border-red-100">
+                        {error}
+                    </div>
+                )}
             </div>
         </div>
     );

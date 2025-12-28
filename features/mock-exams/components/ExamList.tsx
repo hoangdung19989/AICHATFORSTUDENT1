@@ -26,17 +26,17 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
     }, [subject.name, grade.name]);
 
     const fetchExams = async () => {
-        // Lấy đề thi và kiểm tra xem user hiện tại đã làm chưa
+        // FIX: Xóa dòng .eq('exam_results.user_id', user?.id) để tránh việc Supabase lọc bỏ các đề chưa làm (Inner Join).
+        // Thay vào đó, ta lấy danh sách exam_results và lọc phía Client hoặc dựa vào RLS.
         const { data, error } = await supabase
             .from('teacher_exams')
             .select(`
                 *,
-                exam_results(id)
+                exam_results(id, user_id)
             `)
             .eq('subject', subject.name)
             .eq('grade', grade.name)
             .eq('status', 'published')
-            .eq('exam_results.user_id', user?.id)
             .order('created_at', { ascending: false });
         
         if (!error && data) setExams(data);
@@ -45,11 +45,16 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
 
     const handleSelectTeacherExam = (exam: any) => {
         const isExpired = new Date(exam.deadline) < new Date();
+        
+        // Check kỹ hơn: user đã làm bài chưa
+        const userResult = exam.exam_results?.find((r: any) => r.user_id === user?.id);
+        const isDone = !!userResult;
+
         if (isExpired) {
             alert("Đợt thi này đã kết thúc vào " + new Date(exam.deadline).toLocaleString('vi-VN'));
             return;
         }
-        if (exam.exam_results && exam.exam_results.length > 0) {
+        if (isDone) {
             if (!window.confirm("Bạn đã hoàn thành bài thi này. Bạn có muốn làm lại để cải thiện điểm số không?")) return;
         }
 
@@ -99,7 +104,8 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                         <div className="space-y-4">
                             {exams.map(exam => {
                                 const isExpired = new Date(exam.deadline) < new Date();
-                                const isDone = exam.exam_results && exam.exam_results.length > 0;
+                                // FIX: Kiểm tra chính xác user_id trong mảng results để xác định trạng thái đã làm
+                                const isDone = exam.exam_results && exam.exam_results.some((r: any) => r.user_id === user?.id);
                                 const hasVariants = exam.questions?.variants?.length > 1;
                                 
                                 return (
