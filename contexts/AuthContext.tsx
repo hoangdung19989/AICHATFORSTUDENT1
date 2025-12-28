@@ -20,9 +20,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // CACHE: Khởi tạo profile từ LocalStorage nếu có để tránh flash màn hình chờ khi F5
+  
+  // Khởi tạo profile từ cache để có dữ liệu ngay lập tức
   const [profile, setProfile] = useState<UserProfile | null>(() => {
       try {
           const cached = localStorage.getItem('user_profile');
@@ -31,6 +30,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return null;
       }
   });
+
+  // Nếu có profile trong cache, ta có thể coi như đã load xong (Optimistic UI)
+  // Tuy nhiên vẫn cần kiểm tra session thực tế.
+  // Ta đặt mặc định isLoading = true, nhưng sẽ xử lý fast-track trong useEffect.
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
       try {
@@ -42,7 +46,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (error) return null;
           
-          // CACHE: Lưu profile mới nhất vào LocalStorage
           if (data) {
               localStorage.setItem('user_profile', JSON.stringify(data));
           }
@@ -64,14 +67,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
+    // Timeout an toàn để tắt loading nếu mạng quá chậm
     const safetyTimeout = setTimeout(() => {
         if (mounted && isLoading) {
             setIsLoading(false);
         }
-    }, 5000);
+    }, 3000);
 
     const initAuth = async () => {
         try {
+            // Lấy session từ bộ nhớ local của Supabase (rất nhanh)
             const { data, error } = await supabase.auth.getSession();
             if (error) throw error;
             const currentSession = data?.session;
@@ -82,22 +87,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setSession(currentSession);
                 setUser(currentSession.user);
                 
-                // Fetch profile mới nhất từ server để cập nhật cache
-                const p = await fetchProfile(currentSession.user.id);
-                if (mounted && p) setProfile(p);
+                // --- FAST TRACK LOGIC ---
+                // Nếu đã có profile trong cache khớp với user hiện tại, mở khóa UI ngay lập tức
+                if (profile && profile.id === currentSession.user.id) {
+                    setIsLoading(false); // Vào App ngay, không chờ fetch
+                    
+                    // Fetch ngầm để cập nhật dữ liệu mới nhất (background update)
+                    fetchProfile(currentSession.user.id).then(p => {
+                        if (mounted && p) {
+                            // Chỉ update state nếu có sự thay đổi quan trọng để tránh re-render thừa
+                            if (JSON.stringify(p) !== JSON.stringify(profile)) {
+                                setProfile(p);
+                            }
+                        }
+                    });
+                } else {
+                    // Nếu chưa có cache hoặc user khác cache, bắt buộc phải chờ fetch
+                    const p = await fetchProfile(currentSession.user.id);
+                    if (mounted && p) setProfile(p);
+                    if (mounted) setIsLoading(false);
+                }
             } else {
-                // Nếu không có session, xóa cache profile cũ
+                // Không có session
                 localStorage.removeItem('user_profile');
                 setProfile(null);
+                if (mounted) setIsLoading(false);
             }
         } catch (error) {
             console.error("Auth init error:", error);
             localStorage.removeItem('user_profile');
+            if (mounted) setIsLoading(false);
         } finally {
-            if (mounted) {
-                setIsLoading(false);
-                clearTimeout(safetyTimeout);
-            }
+            clearTimeout(safetyTimeout);
         }
     };
 
@@ -110,18 +131,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           setUser(null);
           setProfile(null);
-          localStorage.removeItem('user_profile'); // Xóa cache khi đăng xuất
+          localStorage.removeItem('user_profile');
           setIsLoading(false);
       } else if (session?.user) {
           setSession(session);
           setUser(session.user);
-          // Kiểm tra nếu profile hiện tại khác với user mới (trường hợp đổi acc)
+          // Update profile khi auth state thay đổi (vd: token refresh)
+          // Chỉ fetch nếu profile hiện tại không khớp
           if (!profile || profile.id !== session.user.id) {
               const p = await fetchProfile(session.user.id);
               if (mounted && p) setProfile(p);
           }
       }
-      if (mounted) setIsLoading(false);
     });
 
     return () => {
@@ -131,23 +152,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             authListener.subscription.unsubscribe();
         }
     };
-  }, []);
+  }, []); // Empty dependency array -> Run once on mount
 
   const signOut = async () => {
     try {
-        // 1. Xóa trạng thái trong bộ nhớ tạm thời của App
         setUser(null);
         setProfile(null);
         setSession(null);
-        
-        // 2. Xóa cache và lịch sử
         localStorage.removeItem('user_profile');
         localStorage.removeItem('nav_history');
-        
-        // 3. Gọi lệnh đăng xuất từ hệ thống Supabase (Xóa Token)
         await supabase.auth.signOut();
-        
-        // 4. Chuyển hướng về trang chủ/đăng nhập
         window.location.href = '/'; 
     } catch (error) {
         console.error("Logout error:", error);

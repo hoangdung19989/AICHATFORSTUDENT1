@@ -10,34 +10,35 @@ const TeacherPendingView: React.FC = () => {
   const { navigate } = useNavigation();
   const [isChecking, setIsChecking] = useState(true);
 
-  // Tự động kiểm tra trạng thái thực tế từ Server ngay khi component được render
   useEffect(() => {
+      let isMounted = true;
+
       const verifyRealStatus = async () => {
           if (!user) return;
           
-          // FAST TRACK: Nếu profile đã có trong context (từ cache) và đã active, chuyển ngay lập tức
+          // 1. FAST CHECK: Kiểm tra ngay trong cache/context
+          // Nếu là Admin hoặc Giáo viên Active -> Đi luôn, không cần hỏi server
           if (profile?.status === 'active' || profile?.role === 'admin') {
               navigate(profile.role === 'admin' ? 'admin-dashboard' : 'teacher-dashboard');
               return;
           }
 
+          // 2. SERVER CHECK: Nếu cache vẫn là pending, hỏi lại server một lần nữa cho chắc
+          // (Trường hợp Admin vừa duyệt xong bên kia, user F5 bên này)
           try {
-              // Lấy dữ liệu mới nhất trực tiếp từ bảng profiles (bỏ qua cache local)
               const { data, error } = await supabase
                   .from('profiles')
                   .select('status, role')
                   .eq('id', user.id)
                   .single();
 
-              if (!error && data) {
-                  // ƯU TIÊN 1: Nếu là Admin -> Chuyển ngay sang trang Admin
+              if (!error && data && isMounted) {
+                  // Nếu server bảo OK -> Cập nhật cache -> Đi luôn
                   if (data.role === 'admin') {
                       await refreshProfile();
                       navigate('admin-dashboard');
                       return;
                   }
-
-                  // ƯU TIÊN 2: Nếu là Giáo viên đã Active -> Chuyển ngay sang trang Teacher
                   if (data.status === 'active') {
                       await refreshProfile();
                       navigate('teacher-dashboard');
@@ -47,26 +48,24 @@ const TeacherPendingView: React.FC = () => {
           } catch (err) {
               console.error("Lỗi xác thực:", err);
           } finally {
-              // Chỉ hiện giao diện chờ nếu thực sự chưa được duyệt
-              setIsChecking(false);
+              if (isMounted) setIsChecking(false);
           }
       };
 
       verifyRealStatus();
+      
+      return () => { isMounted = false; };
   }, [user, navigate, refreshProfile, profile]);
 
+  // Nếu đang check (thường là rất nhanh do fast check), trả về null để không nháy giao diện
+  // Hoặc trả về khung skeleton nhẹ nhàng nếu muốn
   if (isChecking) {
-      // Hiển thị một màn hình trắng hoặc loading rất tối giản để tránh flicker
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50">
-              {/* Chỉ hiện spinner nếu chờ quá lâu, tránh nháy màn hình */}
-          </div>
-      );
+      return null; 
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8" style={{ fontFamily: '"Times New Roman", serif', fontSize: '14pt' }}>
-      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-10 text-center animate-scale-in">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8 animate-fade-in" style={{ fontFamily: '"Times New Roman", serif', fontSize: '14pt' }}>
+      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-10 text-center">
             
             <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-yellow-100 mb-6">
                 <ClockIcon className="h-10 w-10 text-yellow-600" />
@@ -78,7 +77,8 @@ const TeacherPendingView: React.FC = () => {
             
             <p className="text-slate-600 mb-6 leading-relaxed">
                 Xin chào <strong>{user?.email}</strong>,<br/>
-                Yêu cầu đăng ký Giáo viên của bạn đang được xem xét. Vui lòng quay lại sau khi Quản trị viên phê duyệt.
+                Yêu cầu đăng ký của bạn đang được Ban Quản Trị xem xét.
+                <br/><span className="text-sm text-slate-400 mt-2 block">(Vui lòng liên hệ Admin nếu bạn cần duyệt gấp)</span>
             </p>
 
             <div className="flex flex-col gap-3 justify-center">

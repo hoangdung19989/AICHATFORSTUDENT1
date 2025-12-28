@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import type { UserProfile } from '../../types/user';
+import { PROVINCES, SCHOOLS_BY_WARD } from '../../data/schools';
 import { 
     CheckCircleIcon, 
     XCircleIcon, 
@@ -18,7 +19,8 @@ import {
     ShieldCheckIcon,
     BriefcaseIcon,
     ArrowRightCircleIcon,
-    EnvelopeIcon
+    EnvelopeIcon,
+    TowerIcon // Dùng làm icon cho Trường học
 } from '../../components/icons';
 
 const StatCard: React.FC<{ title: string; value: number; icon: React.ElementType; color: string }> = ({ title, value, icon: Icon, color }) => (
@@ -38,9 +40,26 @@ const AdminDashboard: React.FC = () => {
     const { profile, user, isLoading: isAuthLoading } = useAuth();
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
+    
+    // Filters State
     const [filterRole, setFilterRole] = useState<'all' | 'teacher' | 'student' | 'admin'>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    
+    // Location Filters State
+    const [filterProvince, setFilterProvince] = useState('');
+    const [filterWard, setFilterWard] = useState('');
+    const [filterSchool, setFilterSchool] = useState('');
+
     const [error, setError] = useState<string | null>(null);
+
+    // Derived Data for Dropdowns
+    const isTuyenQuangFilter = filterProvince === 'Tuyên Quang';
+    const availableWards = useMemo(() => isTuyenQuangFilter ? Object.keys(SCHOOLS_BY_WARD).sort() : [], [isTuyenQuangFilter]);
+    const availableSchools = useMemo(() => (isTuyenQuangFilter && filterWard) ? (SCHOOLS_BY_WARD[filterWard] || []) : [], [isTuyenQuangFilter, filterWard]);
+
+    // Reset child filters when parent changes
+    useEffect(() => { setFilterWard(''); setFilterSchool(''); }, [filterProvince]);
+    useEffect(() => { setFilterSchool(''); }, [filterWard]);
 
     const fetchUsers = useCallback(async () => {
         setIsLoadingData(true);
@@ -97,9 +116,14 @@ const AdminDashboard: React.FC = () => {
             const matchesSearch = 
                 (u.email?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
                 (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
-            return matchesRole && matchesSearch;
+            
+            const matchesProvince = !filterProvince || u.province === filterProvince;
+            const matchesWard = !filterWard || u.ward_commune === filterWard;
+            const matchesSchool = !filterSchool || u.school_name === filterSchool;
+
+            return matchesRole && matchesSearch && matchesProvince && matchesWard && matchesSchool;
         });
-    }, [users, filterRole, searchQuery]);
+    }, [users, filterRole, searchQuery, filterProvince, filterWard, filterSchool]);
 
     const stats = useMemo(() => ({
         total: users.length,
@@ -139,12 +163,14 @@ const AdminDashboard: React.FC = () => {
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {/* Header with Search & Filters */}
-                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30">
+                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/30 space-y-4">
+                    
+                    {/* Top Row: Title & Search & Role Tabs */}
                     <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
                         <h2 className="text-lg font-bold text-slate-800">Danh sách người dùng</h2>
                         
                         <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
-                            <div className="relative flex-1 sm:min-w-[300px]">
+                            <div className="relative flex-1 sm:min-w-[250px]">
                                 <input 
                                     type="text" 
                                     placeholder="Tìm email hoặc tên..." 
@@ -171,6 +197,38 @@ const AdminDashboard: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Bottom Row: Location Filters */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200/50">
+                        <select 
+                            className="w-full p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:border-brand-primary outline-none text-slate-600"
+                            value={filterProvince}
+                            onChange={(e) => setFilterProvince(e.target.value)}
+                        >
+                            <option value="">-- Tất cả Tỉnh/Thành --</option>
+                            {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+
+                        <select 
+                            className="w-full p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:border-brand-primary outline-none text-slate-600 disabled:bg-slate-50 disabled:text-slate-400"
+                            value={filterWard}
+                            onChange={(e) => setFilterWard(e.target.value)}
+                            disabled={!isTuyenQuangFilter}
+                        >
+                            <option value="">-- Tất cả Xã/Phường (Tuyên Quang) --</option>
+                            {availableWards.map(w => <option key={w} value={w}>{w}</option>)}
+                        </select>
+
+                        <select 
+                            className="w-full p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:border-brand-primary outline-none text-slate-600 disabled:bg-slate-50 disabled:text-slate-400"
+                            value={filterSchool}
+                            onChange={(e) => setFilterSchool(e.target.value)}
+                            disabled={!filterWard}
+                        >
+                            <option value="">-- Tất cả Trường học --</option>
+                            {availableSchools.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
                 </div>
 
                 {isLoadingData ? (
@@ -183,6 +241,7 @@ const AdminDashboard: React.FC = () => {
                                 <thead className="bg-slate-50/50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
                                     <tr>
                                         <th className="px-6 py-4">Người dùng</th>
+                                        <th className="px-6 py-4">Đơn vị công tác/Học tập</th>
                                         <th className="px-6 py-4">Vai trò</th>
                                         <th className="px-6 py-4">Trạng thái</th>
                                         <th className="px-6 py-4 text-right">Thao tác</th>
@@ -200,6 +259,16 @@ const AdminDashboard: React.FC = () => {
                                                         <p className="text-sm font-bold text-slate-800 truncate">{u.full_name || 'N/A'}</p>
                                                         <p className="text-xs text-slate-400 truncate">{u.email}</p>
                                                     </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-slate-700">{u.school_name || 'Chưa cập nhật'}</span>
+                                                    {(u.ward_commune || u.province) && (
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {u.ward_commune ? `${u.ward_commune}, ` : ''}{u.province}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
@@ -246,6 +315,12 @@ const AdminDashboard: React.FC = () => {
                                                     <EnvelopeIcon className="h-3 w-3 mr-1 shrink-0" />
                                                     <span className="truncate">{u.email}</span>
                                                 </div>
+                                                {(u.school_name || u.province) && (
+                                                    <div className="flex items-center text-xs text-slate-500 mt-1">
+                                                        <TowerIcon className="h-3 w-3 mr-1 shrink-0" />
+                                                        <span className="truncate">{u.school_name || u.province}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
