@@ -1,9 +1,12 @@
+
 /**
  * Checks if a URL points to a direct video file.
+ * Updated to handle query parameters (e.g., ?X-Amz-Algorithm=...)
  */
 export const isDirectVideoUrl = (url: string): boolean => {
   if (!url) return false;
-  return /\.(mp4|webm|ogg)$/i.test(url);
+  // Cho phép đuôi file mp4/webm/ogg theo sau là kết thúc dòng ($) hoặc dấu chấm hỏi (?)
+  return /\.(mp4|webm|ogg)($|\?)/i.test(url);
 };
 
 /**

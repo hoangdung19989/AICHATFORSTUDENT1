@@ -12,7 +12,8 @@ import {
     ArrowPathIcon,
     ShieldCheckIcon,
     RobotIcon,
-    ChartBarIcon
+    ChartBarIcon,
+    DocumentTextIcon
 } from '../../components/icons';
 // @ts-ignore
 import mammoth from 'https://esm.sh/mammoth';
@@ -27,23 +28,27 @@ const LessonPlanner: React.FC = () => {
     const [subject, setSubject] = useState(SUBJECTS_LIST[0]);
     const [grade, setGrade] = useState(GRADES[0]);
     const [lessonName, setLessonName] = useState('');
+    
+    // File inputs state
     const [oldContentText, setOldContentText] = useState('');
     const [oldFile, setOldFile] = useState<{ file: File, base64?: string, extractedText?: string } | null>(null);
+    const [appendixFile, setAppendixFile] = useState<{ file: File, base64?: string, extractedText?: string } | null>(null);
+    
     const [isGenerating, setIsGenerating] = useState(false);
     const [result, setResult] = useState<LessonPlan | null>(null);
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const appendixInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    // Generic file handler to reuse for both inputs
+    const processFile = async (file: File, callback: (data: { file: File, base64?: string, extractedText?: string }) => void) => {
         if (file.name.endsWith('.docx')) {
             const reader = new FileReader();
             reader.onload = async (event) => {
                 const arrayBuffer = event.target?.result as ArrayBuffer;
                 try {
                     const res = await mammoth.extractRawText({ arrayBuffer });
-                    setOldFile({ file, extractedText: res.value });
+                    callback({ file, extractedText: res.value });
                 } catch (err) {
                     alert("Không thể đọc file Word này.");
                 }
@@ -53,9 +58,21 @@ const LessonPlanner: React.FC = () => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = () => {
-                setOldFile({ file, base64: (reader.result as string).split(',')[1] });
+                callback({ file, base64: (reader.result as string).split(',')[1] });
             };
         }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        processFile(file, setOldFile);
+    };
+
+    const handleAppendixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        processFile(file, setAppendixFile);
     };
 
     const handleGenerate = async () => {
@@ -64,11 +81,21 @@ const LessonPlanner: React.FC = () => {
         try {
             let contextFiles: { data: string, mimeType: string }[] = [];
             let combinedText = oldContentText;
+            
+            // Xử lý file giáo án cũ
             if (oldFile) {
                 if (oldFile.base64) contextFiles.push({ data: oldFile.base64, mimeType: oldFile.file.type });
                 else if (oldFile.extractedText) combinedText = `[NỘI DUNG TỪ FILE WORD]:\n${oldFile.extractedText}\n\n${combinedText}`;
             }
-            const plan = await generateLessonPlan(subject, grade, lessonName, bookSeries, contextFiles, combinedText);
+
+            // Xử lý file Phụ lục 3
+            let appendixText = "";
+            if (appendixFile) {
+                if (appendixFile.base64) contextFiles.push({ data: appendixFile.base64, mimeType: appendixFile.file.type });
+                else if (appendixFile.extractedText) appendixText = appendixFile.extractedText;
+            }
+
+            const plan = await generateLessonPlan(subject, grade, lessonName, bookSeries, contextFiles, combinedText, appendixText);
             setResult(plan);
         } catch (err: any) { alert("Lỗi: " + err.message); }
         finally { setIsGenerating(false); }
@@ -78,15 +105,11 @@ const LessonPlanner: React.FC = () => {
         const content = document.getElementById('lesson-plan-content');
         if (!content) return;
         
-        // Cập nhật style cho file Word: Times New Roman, 14pt
         const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Giao an 5512</title><style>body { font-family: 'Times New Roman', serif; font-size: 14pt; line-height: 1.5; } table { border-collapse: collapse; width: 100%; margin-bottom: 20px; font-size: 14pt; } th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; } .font-bold { font-weight: bold; } .text-center { text-align: center; } .uppercase { text-transform: uppercase; } .page-break { page-break-after: always; }</style></head><body>";
         const footer = "</body></html>";
         const sourceHTML = header + content.innerHTML + footer;
         
-        const blob = new Blob(['\ufeff', sourceHTML], {
-            type: 'application/msword'
-        });
-        
+        const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -96,7 +119,7 @@ const LessonPlanner: React.FC = () => {
         document.body.removeChild(link);
     };
 
-    if (isGenerating) return <div className="h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Đang xử lý dữ liệu..." subText="AI đang phân tích và giữ nguyên cấu trúc bài dạy của bạn..." /></div>;
+    if (isGenerating) return <div className="h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Đang xử lý dữ liệu..." subText="AI đang phân tích năng lực số và cấu trúc bài dạy..." /></div>;
 
     if (result) {
         return (
@@ -104,7 +127,7 @@ const LessonPlanner: React.FC = () => {
                 {/* Thanh công cụ kết quả */}
                 <div className="bg-white p-4 rounded-2xl shadow-md border mb-6 flex flex-wrap gap-4 justify-between items-center sticky top-4 z-50">
                     <button onClick={() => setResult(null)} className="flex items-center text-slate-500 font-bold hover:text-slate-800 transition-colors">
-                        <ArrowPathIcon className="h-5 w-5 mr-2" /> Làm lại bản khác
+                        <ArrowPathIcon className="h-5 w-5 mr-2" /> Soạn bài khác
                     </button>
                     <div className="flex gap-3">
                         <button onClick={downloadAsDoc} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center shadow-lg hover:bg-emerald-700 transition-all">
@@ -117,13 +140,12 @@ const LessonPlanner: React.FC = () => {
                 </div>
 
                 {/* KHU VỰC GIÁO ÁN CHUẨN CẤU TRÚC */}
-                {/* Áp dụng inline style font-family và font-size để đảm bảo chính xác */}
                 <div 
                     id="lesson-plan-content" 
                     className="bg-white shadow-2xl p-[2cm] text-black leading-normal border border-slate-300 min-h-[29.7cm]"
                     style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '14pt' }}
                 >
-                    {/* Header chuẩn hành chính */}
+                    {/* Header */}
                     <div className="grid grid-cols-2 mb-10" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                         <div className="text-center font-bold">
                             <p className="text-sm uppercase">TRƯỜNG: .............................</p>
@@ -198,47 +220,63 @@ const LessonPlanner: React.FC = () => {
                     <div className="mb-12">
                         <h3 className="font-bold uppercase mb-6">III. TIẾN TRÌNH DẠY HỌC</h3>
                         <div className="space-y-10">
-                            {(result.activities || []).map((act, idx) => (
-                                <div key={act.id} className="pl-0">
-                                    <h4 className="font-bold mb-4 bg-slate-100 p-2 border-l-4 border-black">{act.title}</h4>
-                                    <div className="pl-4 space-y-2">
-                                        <p><strong>a) Mục tiêu:</strong> {act.goal}</p>
-                                        <p><strong>b) Nội dung:</strong> {act.content}</p>
-                                        <p><strong>c) Sản phẩm:</strong> {act.product}</p>
-                                        
-                                        <div className="mt-4">
-                                            <p className="font-bold italic underline mb-2">d) Tổ chức thực hiện:</p>
+                            {(result.activities || []).map((act, idx) => {
+                                // Logic: Hoạt động mở đầu/khởi động KHÔNG kẻ bảng
+                                const isStartActivity = idx === 0 || act.title.toLowerCase().includes("khởi động") || act.title.toLowerCase().includes("mở đầu");
+                                
+                                return (
+                                    <div key={act.id} className="pl-0">
+                                        <h4 className="font-bold mb-4 bg-slate-100 p-2 border-l-4 border-black">{act.title}</h4>
+                                        <div className="pl-4 space-y-2">
+                                            <p><strong>a) Mục tiêu:</strong> {act.goal}</p>
+                                            <p><strong>b) Nội dung:</strong> {act.content}</p>
+                                            <p><strong>c) Sản phẩm:</strong> {act.product}</p>
                                             
-                                            {/* BẢNG TỔ CHỨC THỰC HIỆN - Cỡ chữ 14pt */}
-                                            <table className="w-full border-collapse border border-black mt-2" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '14pt' }}>
-                                                <thead>
-                                                    <tr className="bg-slate-50">
-                                                        <th className="border border-black p-2 text-center w-2/3" style={{ border: '1px solid black' }}>Hoạt động của giáo viên và học sinh</th>
-                                                        <th className="border border-black p-2 text-center w-1/3" style={{ border: '1px solid black' }}>Sản phẩm dự kiến</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr>
-                                                        <td className="border border-black p-3 align-top" style={{ border: '1px solid black' }}>
-                                                            {act.execution?.step1 && <p className="mb-2"><strong>Bước 1: Chuyển giao nhiệm vụ</strong><br/>{act.execution.step1}</p>}
-                                                            {act.execution?.step2 && <p className="mb-2"><strong>Bước 2: Thực hiện nhiệm vụ</strong><br/>{act.execution.step2}</p>}
-                                                            {act.execution?.step3 && <p className="mb-2"><strong>Bước 3: Báo cáo, thảo luận</strong><br/>{act.execution.step3}</p>}
-                                                            {act.execution?.step4 && <p><strong>Bước 4: Kết luận, nhận định</strong><br/>{act.execution.step4}</p>}
-                                                        </td>
-                                                        <td className="border border-black p-3 align-top" style={{ border: '1px solid black' }}>
-                                                            <div dangerouslySetInnerHTML={{ __html: (act.product || "Học sinh hoàn thành nhiệm vụ.").replace(/\n/g, '<br/>') }} />
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
+                                            <div className="mt-4">
+                                                <p className="font-bold italic underline mb-2">d) Tổ chức thực hiện:</p>
+                                                
+                                                {isStartActivity ? (
+                                                    // RENDER DẠNG TEXT (Không bảng) CHO HOẠT ĐỘNG MỞ ĐẦU
+                                                    <div className="pl-4 space-y-3">
+                                                        <p><strong>Bước 1: Chuyển giao nhiệm vụ:</strong> {act.execution?.step1}</p>
+                                                        <p><strong>Bước 2: Thực hiện nhiệm vụ:</strong> {act.execution?.step2}</p>
+                                                        <p><strong>Bước 3: Báo cáo, thảo luận:</strong> {act.execution?.step3}</p>
+                                                        <p><strong>Bước 4: Kết luận, nhận định:</strong> {act.execution?.step4}</p>
+                                                        {act.product && <p className="italic text-gray-700 mt-2">(*Sản phẩm dự kiến: {act.product})</p>}
+                                                    </div>
+                                                ) : (
+                                                    // RENDER DẠNG BẢNG CHO CÁC HOẠT ĐỘNG KHÁC
+                                                    <table className="w-full border-collapse border border-black mt-2" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '14pt' }}>
+                                                        <thead>
+                                                            <tr className="bg-slate-50">
+                                                                <th className="border border-black p-2 text-center w-2/3" style={{ border: '1px solid black' }}>Hoạt động của giáo viên và học sinh</th>
+                                                                <th className="border border-black p-2 text-center w-1/3" style={{ border: '1px solid black' }}>Sản phẩm dự kiến</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr>
+                                                                <td className="border border-black p-3 align-top" style={{ border: '1px solid black' }}>
+                                                                    {act.execution?.step1 && <p className="mb-2"><strong>Bước 1: Chuyển giao nhiệm vụ</strong><br/>{act.execution.step1}</p>}
+                                                                    {act.execution?.step2 && <p className="mb-2"><strong>Bước 2: Thực hiện nhiệm vụ</strong><br/>{act.execution.step2}</p>}
+                                                                    {act.execution?.step3 && <p className="mb-2"><strong>Bước 3: Báo cáo, thảo luận</strong><br/>{act.execution.step3}</p>}
+                                                                    {act.execution?.step4 && <p><strong>Bước 4: Kết luận, nhận định</strong><br/>{act.execution.step4}</p>}
+                                                                </td>
+                                                                <td className="border border-black p-3 align-top" style={{ border: '1px solid black' }}>
+                                                                    <div dangerouslySetInnerHTML={{ __html: (act.product || "Học sinh hoàn thành nhiệm vụ.").replace(/\n/g, '<br/>') }} />
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* Section IV: Bảng phân tích NLS (Minh chứng) - Cỡ chữ 14pt */}
+                    {/* Section IV: Bảng phân tích NLS */}
                     <div className="mt-20 page-break">
                         <h3 className="font-bold uppercase mb-6">IV. PHỤ LỤC: BẢNG MÃ HOÁ NĂNG LỰC SỐ</h3>
                         <p className="italic text-sm mb-4">(Bảng này được AI trích xuất dựa trên các hoạt động có sử dụng công nghệ trong bài dạy)</p>
@@ -248,7 +286,7 @@ const LessonPlanner: React.FC = () => {
                                     <th className="border border-black p-2 w-12 text-center" style={{ border: '1px solid black' }}>TT</th>
                                     <th className="border border-black p-2 text-left" style={{ border: '1px solid black' }}>Hoạt động</th>
                                     <th className="border border-black p-2 text-left" style={{ border: '1px solid black' }}>Cách thức tổ chức</th>
-                                    <th className="border border-black p-2 text-left w-64" style={{ border: '1px solid black' }}>Mã NLS & Biểu hiện (Theo 3456)</th>
+                                    <th className="border border-black p-2 text-left w-64" style={{ border: '1px solid black' }}>Mã NLS & Biểu hiện</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -264,6 +302,7 @@ const LessonPlanner: React.FC = () => {
                         </table>
                     </div>
 
+                    {/* Footer Signature */}
                     <div className="mt-20 grid grid-cols-2 text-center italic" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                         <div>
                             <p>Đã duyệt của Tổ chuyên môn</p>
@@ -294,7 +333,7 @@ const LessonPlanner: React.FC = () => {
                     </div>
                     <div className="text-center md:text-left">
                         <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase">Số hoá giáo án</h1>
-                        <p className="text-blue-100 mt-2 opacity-95 text-lg">Giữ nguyên giáo án gốc, chỉ thêm Năng lực số.</p>
+                        <p className="text-blue-100 mt-2 opacity-95 text-lg">Hỗ trợ soạn giáo án 5512 tích hợp Năng lực số mới nhất (Miền AI).</p>
                     </div>
                 </div>
             </div>
@@ -329,31 +368,56 @@ const LessonPlanner: React.FC = () => {
                         </div>
 
                         <div className="space-y-6">
+                            {/* FILE UPLOAD 1: GIÁO ÁN CŨ */}
                             <div className="flex items-center justify-between">
-                                <label className="block text-sm font-bold text-slate-700">Tải giáo án cũ (.docx)</label>
+                                <label className="block text-sm font-bold text-slate-700">1. Tải giáo án cũ (.docx)</label>
                                 <span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-bold">Word (Khuyên dùng)</span>
                             </div>
                             
                             <div 
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`border-4 border-dashed rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${oldFile ? 'border-green-400 bg-green-50 shadow-inner' : 'border-slate-100 hover:border-brand-blue hover:bg-indigo-50/30'}`}
+                                className={`border-4 border-dashed rounded-[2.5rem] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${oldFile ? 'border-green-400 bg-green-50 shadow-inner' : 'border-slate-100 hover:border-brand-blue hover:bg-indigo-50/30'}`}
                             >
                                 <input type="file" ref={fileInputRef} className="hidden" accept=".docx,.pdf,.png,.jpg,.jpeg" onChange={handleFileChange} />
                                 {oldFile ? (
                                     <>
-                                        <div className="bg-green-500 p-3 rounded-2xl mb-3 shadow-lg">
-                                            <CheckCircleIcon className="h-8 w-8 text-white" />
+                                        <div className="bg-green-500 p-2 rounded-xl mb-2 shadow-lg">
+                                            <CheckCircleIcon className="h-6 w-6 text-white" />
                                         </div>
-                                        <p className="text-green-800 font-bold">{oldFile.file.name}</p>
-                                        <button onClick={(e) => { e.stopPropagation(); setOldFile(null); }} className="mt-4 text-xs font-bold text-red-500 hover:underline">Xóa và chọn file khác</button>
+                                        <p className="text-green-800 font-bold text-sm">{oldFile.file.name}</p>
+                                        <button onClick={(e) => { e.stopPropagation(); setOldFile(null); }} className="mt-2 text-xs font-bold text-red-500 hover:underline">Xóa file</button>
                                     </>
                                 ) : (
                                     <>
-                                        <div className="bg-slate-100 p-4 rounded-2xl mb-4 group-hover:bg-brand-blue/10 transition-colors">
-                                            <CloudArrowUpIcon className="h-12 w-12 text-slate-400" />
+                                        <CloudArrowUpIcon className="h-10 w-10 text-slate-400 mb-2" />
+                                        <p className="text-slate-500 font-bold text-sm">Nhấn để tải file giáo án</p>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* FILE UPLOAD 2: PHỤ LỤC 3 */}
+                            <div className="flex items-center justify-between mt-4">
+                                <label className="block text-sm font-bold text-slate-700">2. Tải Phụ lục 3 (Đặc tả/YCCĐ) - <span className="italic font-normal text-slate-500">Tùy chọn</span></label>
+                                <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold">Hỗ trợ AI chính xác hơn</span>
+                            </div>
+                            
+                            <div 
+                                onClick={() => appendixInputRef.current?.click()}
+                                className={`border-4 border-dashed rounded-[2.5rem] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${appendixFile ? 'border-purple-400 bg-purple-50 shadow-inner' : 'border-slate-100 hover:border-purple-500 hover:bg-purple-50/30'}`}
+                            >
+                                <input type="file" ref={appendixInputRef} className="hidden" accept=".docx,.pdf,.png,.jpg,.jpeg" onChange={handleAppendixChange} />
+                                {appendixFile ? (
+                                    <>
+                                        <div className="bg-purple-500 p-2 rounded-xl mb-2 shadow-lg">
+                                            <DocumentTextIcon className="h-6 w-6 text-white" />
                                         </div>
-                                        <p className="text-slate-500 font-bold">Nhấn để tải file giáo án</p>
-                                        <p className="text-slate-400 text-xs mt-1">Hệ thống sẽ giữ nguyên nội dung gốc</p>
+                                        <p className="text-purple-800 font-bold text-sm">{appendixFile.file.name}</p>
+                                        <button onClick={(e) => { e.stopPropagation(); setAppendixFile(null); }} className="mt-2 text-xs font-bold text-red-500 hover:underline">Xóa file</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <DocumentTextIcon className="h-10 w-10 text-slate-400 mb-2" />
+                                        <p className="text-slate-500 font-bold text-sm">Nhấn để tải Phụ lục 3</p>
                                     </>
                                 )}
                             </div>
@@ -386,15 +450,15 @@ const LessonPlanner: React.FC = () => {
                         <div className="space-y-8">
                             <div className="flex gap-4">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">1</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Nguyên vẹn:</strong> AI sẽ không tự ý cắt bỏ Năng lực chung, Phẩm chất hay các bước dạy học.</p>
+                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Phụ lục 3:</strong> Tải thêm file này sẽ giúp AI hiểu rõ Yêu cầu cần đạt và Ma trận năng lực chính xác hơn.</p>
                             </div>
                             <div className="flex gap-4">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">2</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Bổ sung:</strong> Chỉ thêm mã Năng lực số vào các hoạt động có sử dụng công nghệ.</p>
+                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Khởi động:</strong> Hoạt động mở đầu sẽ được trình bày dưới dạng liệt kê các bước, không kẻ bảng theo quy định mới.</p>
                             </div>
                             <div className="flex gap-4">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-brand-yellow border border-white/20">3</span>
-                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Định dạng:</strong> Kết quả hiển thị đúng dạng bảng (Hoạt động - Sản phẩm) như file gốc.</p>
+                                <p className="text-sm text-slate-300 leading-relaxed"><strong>Nguyên vẹn:</strong> AI sẽ không tự ý cắt bỏ Năng lực chung, Phẩm chất hay các bước dạy học.</p>
                             </div>
                         </div>
                     </div>

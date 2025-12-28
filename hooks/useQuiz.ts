@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,6 +37,9 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const [questionStartTime, setQuestionStartTime] = useState(Date.now());
 
+    // FIX: Đảm bảo questions luôn là mảng để tránh lỗi undefined.length
+    const questions = quizData?.questions || [];
+
     useEffect(() => {
         if (quizData) {
             // Reset state for new quiz
@@ -64,14 +68,15 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
         return () => clearInterval(timer);
     }, [isTimerRunning, timeLeft]);
     
-    const isQuizFinished = quizData ? currentQuestionIndex >= quizData.questions.length : false;
-    const currentQuestion = quizData ? quizData.questions[currentQuestionIndex] : null;
+    // FIX: Sử dụng biến local 'questions' đã được xử lý an toàn
+    const isQuizFinished = quizData ? currentQuestionIndex >= questions.length : false;
+    const currentQuestion = (questions && questions.length > 0) ? questions[currentQuestionIndex] : null;
 
     useEffect(() => {
         if (isQuizFinished && onQuizFinish && quizData) {
-            onQuizFinish(score, quizData.questions.length);
+            onQuizFinish(score, questions.length);
         }
-    }, [isQuizFinished, onQuizFinish, score, quizData]);
+    }, [isQuizFinished, onQuizFinish, score, quizData, questions.length]);
 
 
     const handleAnswerSelect = useCallback(async (option: string) => {
@@ -120,7 +125,7 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
-    const progress = quizData ? ((currentQuestionIndex + 1) / quizData.questions.length) * 100 : 0;
+    const progress = (quizData && questions.length > 0) ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
     return {
         currentQuestion,

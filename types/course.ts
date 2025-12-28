@@ -3,6 +3,8 @@ export interface Lesson {
     title: string;
     type: 'video' | 'text' | 'quiz';
     videoUrl?: string;
+    duration?: string;
+    thumbnail?: string;
 }
 
 export interface Chapter {

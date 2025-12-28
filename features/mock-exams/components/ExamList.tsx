@@ -54,6 +54,7 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
         }
 
         const dbContent: any = exam.questions;
+        // FIX: Xử lý an toàn khi dbContent.questions không tồn tại
         let finalQuestions = dbContent.questions || [];
         let examTitle = exam.title;
 
@@ -61,7 +62,7 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
         if (dbContent.variants && Array.isArray(dbContent.variants) && dbContent.variants.length > 0) {
             const randomIndex = Math.floor(Math.random() * dbContent.variants.length);
             const selectedVariant = dbContent.variants[randomIndex];
-            finalQuestions = selectedVariant.questions;
+            finalQuestions = selectedVariant.questions || []; 
             examTitle = `${exam.title} (Mã đề: ${selectedVariant.code})`;
         }
 
