@@ -3,17 +3,18 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronRightIcon, XMarkIcon } from '../icons';
 
 interface SearchableSelectProps {
-    label: string;
+    label?: string; // Label is now optional to fit filter bars better
     options: string[];
     value: string;
     onChange: (value: string) => void;
     placeholder: string;
     disabled?: boolean;
     required?: boolean;
+    className?: string; // Allow custom styling from parent
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({ 
-    label, options, value, onChange, placeholder, disabled, required 
+    label, options, value, onChange, placeholder, disabled, required, className
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -42,26 +43,44 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         if (isOpen) setSearchTerm('');
     }, [isOpen]);
 
+    const handleClear = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange('');
+        setIsOpen(false);
+    };
+
     return (
-        <div className="relative w-full" ref={containerRef}>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                {label} {required && <span className="text-red-500">*</span>}
-            </label>
+        <div className={`relative w-full ${className || ''}`} ref={containerRef}>
+            {label && (
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                    {label} {required && <span className="text-red-500">*</span>}
+                </label>
+            )}
             
-            <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setIsOpen(!isOpen)}
-                className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 text-sm transition-all text-left ${
+            <div
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-2.5 text-sm transition-all cursor-pointer bg-white ${
                     disabled ? 'bg-slate-50 border-slate-100 text-slate-400 opacity-60 cursor-not-allowed' : 
-                    isOpen ? 'bg-white border-brand-primary ring-4 ring-indigo-50 text-slate-800' : 'bg-white border-slate-100 text-slate-700 hover:border-slate-300'
+                    isOpen ? 'border-brand-primary ring-4 ring-indigo-50 text-slate-800' : 'border-slate-200 text-slate-700 hover:border-slate-300'
                 }`}
             >
-                <span className={`truncate font-medium ${!value ? 'text-slate-400' : 'text-slate-800'}`}>
+                <span className={`truncate font-medium flex-1 ${!value ? 'text-slate-400' : 'text-slate-800'}`}>
                     {value || placeholder}
                 </span>
-                <ChevronRightIcon className={`h-4 w-4 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-90 text-brand-primary' : 'text-slate-400'}`} />
-            </button>
+                
+                <div className="flex items-center ml-2">
+                    {value && !disabled && (
+                        <button 
+                            onClick={handleClear}
+                            className="p-1 mr-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-red-500 transition-colors"
+                            title="Xóa lựa chọn"
+                        >
+                            <XMarkIcon className="h-4 w-4" />
+                        </button>
+                    )}
+                    <ChevronRightIcon className={`h-4 w-4 transition-transform duration-300 flex-shrink-0 text-slate-400 ${isOpen ? 'rotate-90 text-brand-primary' : ''}`} />
+                </div>
+            </div>
 
             {isOpen && !disabled && (
                 <div className="absolute z-[100] mt-2 w-full bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-scale-in origin-top">
@@ -73,7 +92,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                             autoFocus
                             type="text"
                             placeholder="Gõ để tìm nhanh..."
-                            className="w-full bg-transparent border-none outline-none text-sm font-medium py-1 placeholder-slate-400"
+                            className="w-full bg-transparent border-none outline-none text-sm font-medium py-1 placeholder-slate-400 text-slate-700"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={(e) => {
@@ -97,7 +116,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                                         onChange(option);
                                         setIsOpen(false);
                                     }}
-                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors truncate ${
                                         value === option ? 'bg-indigo-50 text-brand-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                     }`}
                                 >
@@ -106,7 +125,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                             ))
                         ) : (
                             <div className="py-8 text-center text-slate-400 text-xs font-medium italic">
-                                Không tìm thấy kết quả nào
+                                Không tìm thấy kết quả
                             </div>
                         )}
                     </div>

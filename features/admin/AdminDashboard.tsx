@@ -5,6 +5,7 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import SearchableSelect from '../../components/common/SearchableSelect'; // Import component mới
 import type { UserProfile } from '../../types/user';
 import { PROVINCES, SCHOOLS_BY_WARD } from '../../data/schools';
 import { 
@@ -20,7 +21,7 @@ import {
     BriefcaseIcon,
     ArrowRightCircleIcon,
     EnvelopeIcon,
-    TowerIcon // Dùng làm icon cho Trường học
+    TowerIcon 
 } from '../../components/icons';
 
 const StatCard: React.FC<{ title: string; value: number; icon: React.ElementType; color: string }> = ({ title, value, icon: Icon, color }) => (
@@ -198,36 +199,30 @@ const AdminDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Bottom Row: Location Filters */}
+                    {/* Bottom Row: Location Filters with Searchable Select */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200/50">
-                        <select 
-                            className="w-full p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:border-brand-primary outline-none text-slate-600"
+                        <SearchableSelect 
+                            placeholder="-- Tất cả Tỉnh/Thành --"
+                            options={PROVINCES}
                             value={filterProvince}
-                            onChange={(e) => setFilterProvince(e.target.value)}
-                        >
-                            <option value="">-- Tất cả Tỉnh/Thành --</option>
-                            {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
+                            onChange={setFilterProvince}
+                        />
 
-                        <select 
-                            className="w-full p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:border-brand-primary outline-none text-slate-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        <SearchableSelect 
+                            placeholder="-- Tất cả Xã/Phường (Tuyên Quang) --"
+                            options={availableWards}
                             value={filterWard}
-                            onChange={(e) => setFilterWard(e.target.value)}
+                            onChange={setFilterWard}
                             disabled={!isTuyenQuangFilter}
-                        >
-                            <option value="">-- Tất cả Xã/Phường (Tuyên Quang) --</option>
-                            {availableWards.map(w => <option key={w} value={w}>{w}</option>)}
-                        </select>
+                        />
 
-                        <select 
-                            className="w-full p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:border-brand-primary outline-none text-slate-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        <SearchableSelect 
+                            placeholder="-- Tất cả Trường học --"
+                            options={availableSchools}
                             value={filterSchool}
-                            onChange={(e) => setFilterSchool(e.target.value)}
+                            onChange={setFilterSchool}
                             disabled={!filterWard}
-                        >
-                            <option value="">-- Tất cả Trường học --</option>
-                            {availableSchools.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        />
                     </div>
                 </div>
 
