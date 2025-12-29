@@ -158,19 +158,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAboutModal }) 
 
             {user ? (
               <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 shadow-sm">
-                <div className="flex items-center space-x-2.5 mb-2 px-1">
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-400 to-pink-400 p-0.5 shadow-md flex-shrink-0">
+                <button
+                  onClick={() => handleNavigate('profile-settings')}
+                  className="flex items-center space-x-2.5 mb-2 px-1 w-full text-left group"
+                >
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-400 to-pink-400 p-0.5 shadow-md flex-shrink-0 group-hover:scale-105 transition-transform">
                     <div className="h-full w-full rounded-full bg-white flex items-center justify-center overflow-hidden">
                         <UserCircleIcon className="h-5 w-5 text-slate-600" />
                     </div>
                   </div>
                   <div className="flex flex-col overflow-hidden min-w-0">
-                      <span className="text-xs font-bold text-slate-700 truncate font-display">{user.user_metadata?.full_name || 'Người dùng'}</span>
+                      <span className="text-xs font-bold text-slate-700 truncate font-display group-hover:text-brand-primary transition-colors">{profile?.full_name || user.user_metadata?.full_name || 'Người dùng'}</span>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block w-fit ${roleBadgeColor}`}>
-                          {roleLabel}
+                          {roleLabel} - {profile?.grade_name || user.user_metadata?.grade_name || 'Lớp ?'}
                       </span>
                   </div>
-                </div>
+                </button>
                 <button
                   onClick={() => { signOut(); onClose(); }}
                   className="w-full flex items-center justify-center space-x-2 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100 text-slate-600 font-bold py-2 px-3 rounded-lg text-[10px] uppercase tracking-wide transition-all duration-200"

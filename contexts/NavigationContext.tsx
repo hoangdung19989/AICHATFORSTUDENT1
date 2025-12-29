@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 export type View = 
   | 'home' | 'login' | 'admin-login' | 'update-password' | 'personalized-dashboard' | 'self-study'
   | 'teacher-dashboard' | 'lesson-planner' | 'test-generator' | 'admin-dashboard' | 'exam-manager' | 'exam-results-viewer'
-  | 'ai-subjects' | 'ai-tutor'
+  | 'ai-subjects' | 'ai-tutor' | 'profile-settings'
   | 'lecture-subjects' | 'lecture-grades' | 'lecture-video'
   | 'laboratory-categories' | 'laboratory-subcategories' | 'laboratory-list' | 'laboratory-simulation'
   | 'test-subjects' | 'test-grades' | 'test-types' | 'quiz-view'
@@ -29,7 +29,6 @@ interface NavigationContextType {
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Hàm lấy view từ hash URL (ví dụ: #/self-study -> self-study)
   const getViewFromHash = (): NavigationState => {
     const hash = window.location.hash.replace('#/', '');
     if (!hash) return { view: 'login', params: {} };
@@ -38,7 +37,6 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const [history, setHistory] = useState<NavigationState[]>([getViewFromHash()]);
 
-  // Đồng bộ hóa URL khi history thay đổi
   useEffect(() => {
     const currentState = history[history.length - 1];
     if (currentState) {
@@ -46,7 +44,6 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   }, [history]);
 
-  // Lắng nghe sự kiện đổi hash (khi nhấn Back/Forward trên trình duyệt)
   useEffect(() => {
     const handleHashChange = () => {
       const newState = getViewFromHash();

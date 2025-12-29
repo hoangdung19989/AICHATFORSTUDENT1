@@ -22,6 +22,7 @@ import TestGenerator from './features/teacher/TestGenerator';
 import ExamManager from './features/teacher/ExamManager';
 import ExamResultsViewer from './features/teacher/ExamResultsViewer';
 import AdminDashboard from './features/admin/AdminDashboard';
+import ProfileSettingsView from './features/profile/ProfileSettingsView';
 
 import { useAuth } from './contexts/AuthContext';
 import { useNavigation, View } from './contexts/NavigationContext';
@@ -39,8 +40,6 @@ import {
     ChatBubbleBottomCenterTextIcon
 } from './components/icons';
 import LoadingSpinner from './components/common/LoadingSpinner';
-
-// ... (các component phụ giữ nguyên) ...
 
 const MobileHeader: React.FC<{ onMenuOpen: () => void }> = ({ onMenuOpen }) => {
     return (
@@ -157,7 +156,6 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (isLoading) return;
     if (user && (currentView === 'login' || currentView === 'admin-login')) {
-      // Ưu tiên check role từ profile trước vì nó chính xác hơn metadata
       const isAdmin = profile?.role === 'admin' || (!profile && user.user_metadata?.role === 'admin');
       if (isAdmin) navigate('admin-dashboard');
       else navigate('home');
@@ -176,6 +174,7 @@ const AppContent: React.FC = () => {
       case 'exam-manager': return <ExamManager />; 
       case 'exam-results-viewer': return <ExamResultsViewer />;
       case 'admin-dashboard': return <AdminDashboard />;
+      case 'profile-settings': return <ProfileSettingsView />;
       case 'ai-tutor': case 'ai-subjects': return <AITutorFlow />;
       case 'lecture-subjects': case 'lecture-grades': case 'lecture-video': return <LecturesFlow />;
       case 'laboratory-categories': case 'laboratory-subcategories': case 'laboratory-list': case 'laboratory-simulation': return <LaboratoryFlow />;
@@ -193,19 +192,12 @@ const AppContent: React.FC = () => {
     return <LoginView onLoginSuccess={() => {}} />;
   }
   
-  // LOGIC ĐIỀU HƯỚNG QUAN TRỌNG:
-  // 1. Lấy role và status. Ưu tiên profile (DB) hơn metadata (Auth).
   const role = profile?.role || user.user_metadata?.role;
   const status = profile?.status || (role === 'teacher' ? 'pending' : 'active');
   
-  // 2. Chỉ hiện TeacherPendingView nếu:
-  // - Role là Teacher VÀ Status là Pending
-  // - VÀ QUAN TRỌNG: Role trong Profile KHÔNG phải là admin (đề phòng metadata sai)
-  // - VÀ Profile KHÔNG phải là active (đề phòng metadata sai)
   if (role === 'teacher' && status === 'pending') {
-      // Double check: Nếu profile đã load và xác nhận là admin hoặc active, thì bỏ qua pending view
       if (profile?.role === 'admin' || profile?.status === 'active') {
-          // Cho phép render view bình thường
+          // Cho phép
       } else {
           return <TeacherPendingView />;
       }

@@ -23,6 +23,8 @@ interface LoginViewProps {
 
 type UserRole = 'student' | 'teacher';
 
+const ALL_GRADES = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"];
+
 const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { navigate } = useNavigation();
   const [role, setRole] = useState<UserRole>('student');
@@ -35,6 +37,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [fullName, setFullName] = useState('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Nam');
+  const [grade, setGrade] = useState(ALL_GRADES[0]);
   
   // School Fields
   const [province, setProvince] = useState('Tuyên Quang');
@@ -102,6 +105,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     province,
                     ward_commune: ward,
                     school_name: school,
+                    grade_name: grade, // Lưu thông tin khối lớp vào metadata
                     status: role === 'teacher' ? 'pending' : 'active'
                 } 
             }
@@ -294,6 +298,17 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                                             </div>
                                         </div>
                                     )}
+                                    
+                                    {/* Grade Selection for Students */}
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Khối lớp {role === 'teacher' ? 'đang dạy' : ''}</label>
+                                        <select 
+                                            className="w-full rounded-xl border-2 border-slate-100 px-4 py-3 text-sm focus:border-brand-primary focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-bold"
+                                            value={grade} onChange={(e) => setGrade(e.target.value)}
+                                        >
+                                            {ALL_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <div className="h-px bg-slate-100"></div>

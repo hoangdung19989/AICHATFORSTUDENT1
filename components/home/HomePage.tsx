@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigation } from '../../contexts/NavigationContext';
@@ -21,32 +22,29 @@ const HomePage: React.FC = () => {
     const { user, profile } = useAuth();
     const { navigate } = useNavigation();
     const [assignedExams, setAssignedExams] = useState<any[]>([]);
-    // FIX: Added missing myExams state used for teacher statistics
     const [myExams, setMyExams] = useState<any[]>([]);
     const [isLoadingExams, setIsLoadingExams] = useState(false);
 
-    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'bạn';
+    const userName = user?.user_metadata?.full_name || profile?.full_name || user?.email?.split('@')[0] || 'bạn';
     const role = profile?.role || user?.user_metadata?.role;
     const isTeacher = role === 'teacher';
     const isAdmin = role === 'admin';
     const isStudent = role === 'student' || !role;
 
-    // Lấy thông tin lớp của học sinh từ profile
-    const studentGrade = profile?.grade_name || "Lớp 6";
+    // Lấy thông tin lớp: Ưu tiên profile database, sau đó đến metadata auth, cuối cùng mặc định Lớp 6
+    const studentGrade = profile?.grade_name || user?.user_metadata?.grade_name || "Lớp 6";
 
     useEffect(() => {
         if (user) {
             if (isStudent) {
                 fetchAssignedExams();
             }
-            // FIX: Trigger teacher exams fetch if the user is a teacher
             if (isTeacher) {
                 fetchTeacherExams();
             }
         }
     }, [isStudent, isTeacher, user, studentGrade]);
 
-    // FIX: Function to fetch exams created by the teacher to populate myExams state
     const fetchTeacherExams = async () => {
         try {
             const { data, error } = await supabase
@@ -65,10 +63,19 @@ const HomePage: React.FC = () => {
     const fetchAssignedExams = async () => {
         setIsLoadingExams(true);
         try {
+            // Log để debug (có thể xóa sau)
+            console.log("Đang tìm bài tập cho lớp:", studentGrade);
+
             // Lấy tất cả đề thi có trạng thái published khớp với khối lớp học sinh
             const { data, error } = await supabase
                 .from('teacher_exams')
-                .select('*, exam_results(id, user_id)')
+                .select(`
+                    *,
+                    exam_results (
+                        id,
+                        user_id
+                    )
+                `)
                 .eq('status', 'published')
                 .eq('grade', studentGrade)
                 .order('deadline', { ascending: true })
@@ -85,12 +92,11 @@ const HomePage: React.FC = () => {
     };
 
     const handleStartExam = (exam: any) => {
-        // "Đẩy" học sinh thẳng vào màn hình làm bài
         navigate('mock-exam-view', { 
             examId: exam.id,
             subjectName: exam.subject,
             gradeName: exam.grade,
-            directStart: true // Cờ báo hiệu cho MockExamFlow bỏ qua chọn khối lớp
+            directStart: true 
         });
     };
 
@@ -103,7 +109,7 @@ const HomePage: React.FC = () => {
                 <p className="mt-3 text-slate-500 text-lg max-w-2xl">
                     {isAdmin ? 'Hệ thống đang hoạt động ổn định.' : 
                      isTeacher ? 'Chào mừng trở lại. Hôm nay thầy/cô muốn chuẩn bị bài giảng hay đẩy đề thi nào?' : 
-                     'Bạn có nhiệm vụ bài tập mới từ giáo viên đấy, kiểm tra ngay nhé!'}
+                     `Bạn thuộc ${studentGrade}, kiểm tra nhiệm vụ bài tập mới từ giáo viên nhé!`}
                 </p>
             </div>
 
@@ -174,20 +180,18 @@ const HomePage: React.FC = () => {
                                     <BriefcaseIcon className="h-5 w-5 mr-2 text-orange-500" />
                                     Nhiệm vụ từ giáo viên
                                 </h3>
-                                {assignedExams.filter(e => !e.exam_results?.some((r: any) => r.user_id === user?.id)).length > 0 && (
-                                    <span className="bg-red-100 text-red-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase animate-pulse">Cần làm</span>
-                                )}
                             </div>
                             <div className="p-4 space-y-3">
                                 {isLoadingExams ? (
                                     <div className="py-4 text-center"><LoadingSpinner text="" /></div>
                                 ) : assignedExams.length === 0 ? (
-                                    <div className="py-8 text-center">
-                                        <p className="text-slate-400 text-sm italic">Thầy cô chưa đẩy nhiệm vụ mới cho khối lớp của bạn.</p>
+                                    <div className="py-8 text-center px-4">
+                                        <p className="text-slate-400 text-sm italic">Thầy cô chưa đẩy nhiệm vụ mới cho {studentGrade}.</p>
                                     </div>
                                 ) : (
                                     assignedExams.map(exam => {
-                                        const isDone = exam.exam_results?.some((r: any) => r.user_id === user?.id);
+                                        const results = exam.exam_results || [];
+                                        const isDone = results.some((r: any) => r.user_id === user?.id);
                                         const deadline = new Date(exam.deadline);
                                         const isExpired = deadline < new Date();
                                         
@@ -230,10 +234,6 @@ const HomePage: React.FC = () => {
                                     <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-md">
                                         <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest">Đã đẩy</p>
                                         <p className="text-3xl font-black mt-1">{myExams.length}</p>
-                                    </div>
-                                    <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-md">
-                                        <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest">Lượt nộp bài mới</p>
-                                        <p className="text-3xl font-black mt-1">--</p>
                                     </div>
                                 </div>
                                 <button 
