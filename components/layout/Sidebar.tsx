@@ -13,7 +13,9 @@ import {
   DocumentTextIcon,
   KeyIcon,
   XMarkIcon,
-  ArrowRightOnRectangleIcon
+  ArrowRightOnRectangleIcon,
+  BriefcaseIcon,
+  ChartBarIcon
 } from '../icons';
 
 interface NavItemProps {
@@ -66,7 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAboutModal }) 
   }
 
   const isViewActive = (view: View) => {
-      return currentView === view || (view === 'self-study' && !['home', 'personalized-dashboard', 'teacher-dashboard', 'admin-dashboard'].includes(currentView));
+      return currentView === view;
   };
 
   const handleNavigate = (view: View) => {
@@ -117,7 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAboutModal }) 
             
             {role !== 'teacher' && role !== 'admin' && (
               <>
-                <NavItem icon={AcademicCapIcon} label="Tự học" view="self-study" isActive={isViewActive('self-study')} onClick={handleNavigate} />
+                <NavItem icon={AcademicCapIcon} label="Tự học" view="self-study" isActive={['self-study', 'lecture-subjects', 'test-subjects', 'mock-exam-subjects', 'laboratory-categories'].includes(currentView)} onClick={handleNavigate} />
                 <NavItem icon={RocketLaunchIcon} label="Lộ trình của tôi" view="personalized-dashboard" isActive={isViewActive('personalized-dashboard')} onClick={handleNavigate} />
               </>
             )}
@@ -125,9 +127,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAboutModal }) 
             {role === 'teacher' && (
               <>
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 mt-3">Giảng dạy</div>
-                <NavItem icon={PencilSquareIcon} label="Công cụ giảng dạy" view="teacher-dashboard" isActive={isViewActive('teacher-dashboard')} onClick={handleNavigate} />
+                <NavItem icon={PencilSquareIcon} label="Công cụ hỗ trợ" view="teacher-dashboard" isActive={isViewActive('teacher-dashboard')} onClick={handleNavigate} />
                 {status === 'active' && (
-                    <NavItem icon={DocumentTextIcon} label="Soạn giáo án" view="lesson-planner" isActive={isViewActive('lesson-planner')} onClick={handleNavigate} />
+                    <>
+                        <NavItem icon={BriefcaseIcon} label="Giao bài tập" view="exam-manager" isActive={isViewActive('exam-manager')} onClick={handleNavigate} />
+                        <NavItem icon={ChartBarIcon} label="Kết quả học sinh" view="exam-results-viewer" isActive={isViewActive('exam-results-viewer')} onClick={handleNavigate} />
+                        <NavItem icon={DocumentTextIcon} label="Soạn giáo án" view="lesson-planner" isActive={isViewActive('lesson-planner')} onClick={handleNavigate} />
+                    </>
                 )}
               </>
             )}
@@ -135,7 +141,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAboutModal }) 
             {role === 'admin' && (
               <>
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 mt-3">Hệ thống</div>
-                <NavItem icon={KeyIcon} label="Quản trị hệ thống" view="admin-dashboard" isActive={isViewActive('admin-dashboard')} onClick={handleNavigate} />
+                <NavItem icon={KeyIcon} label="Quản trị người dùng" view="admin-dashboard" isActive={isViewActive('admin-dashboard')} onClick={handleNavigate} />
               </>
             )}
           </nav>
