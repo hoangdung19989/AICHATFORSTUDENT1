@@ -21,7 +21,6 @@ import {
     ShieldCheckIcon
 } from '../../components/icons';
 
-// Đồng bộ với danh sách LECTURE_SUBJECTS và TEST_SUBJECTS
 const ALL_SUBJECTS = ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "GDCD"];
 const ALL_GRADES = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"];
 
@@ -126,7 +125,7 @@ const ExamManager: React.FC = () => {
             setEssayQuestions(parsedQuiz.essayQuestions || []);
             setStep(2);
         } catch (error: any) { 
-            alert("LỖI: " + (error.message || "Hệ thống AI đang bận.")); 
+            alert("LỖI PHÂN TÍCH: " + (error.message || "Hệ thống AI đang bận.")); 
         } finally { 
             setIsLoading(false); 
         }
@@ -177,9 +176,15 @@ const ExamManager: React.FC = () => {
                 status: 'published'
             });
 
-            if (error) throw error;
+            if (error) {
+                // Kiểm tra nếu lỗi do thiếu cột deadline
+                if (error.message.includes('column "deadline" of relation "teacher_exams" does not exist')) {
+                    throw new Error("Cơ sở dữ liệu thiếu cột 'deadline'. Vui lòng báo cho Quản trị viên chạy lệnh SQL bổ sung cột.");
+                }
+                throw error;
+            }
             
-            alert("ĐÃ ĐẨY BÀI THI: Học sinh lớp " + grade + " có thể thấy đề trong mục Thi thử ngay bây giờ!");
+            alert("ĐÃ ĐẨY BÀI THI THÀNH CÔNG!");
             setViewMode('list'); 
             setStep(1); 
             setTitle(''); setDeadline(''); setExternalLink('');
@@ -187,6 +192,7 @@ const ExamManager: React.FC = () => {
             fetchMyExams();
         } catch (err: any) {
             alert(`LỖI LƯU TRỮ: ${err.message}`);
+            console.error("Database save error:", err);
         } finally { setIsLoading(false); }
     };
 
@@ -232,39 +238,44 @@ const ExamManager: React.FC = () => {
                                 Chưa có đề thi nào. Hãy nhấn "Giao đề mới" để bắt đầu đẩy bài cho học sinh.
                             </div>
                         ) : (
-                            myExams.map(exam => (
-                                <div key={exam.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-start md:items-center">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="text-lg font-bold text-slate-800">{exam.title}</h3>
-                                            <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">{exam.subject}</span>
+                            myExams.map(exam => {
+                                const deadlineDate = exam.deadline ? new Date(exam.deadline) : null;
+                                const isExpired = deadlineDate && deadlineDate < new Date();
+                                
+                                return (
+                                    <div key={exam.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-start md:items-center">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="text-lg font-bold text-slate-800">{exam.title}</h3>
+                                                <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">{exam.subject}</span>
+                                            </div>
+                                            <div className="flex items-center text-sm text-slate-400 gap-3">
+                                                <span>{exam.grade}</span>
+                                                <span>•</span>
+                                                <span className={`flex items-center ${isExpired ? 'text-red-500' : 'text-green-600'}`}>
+                                                    <ClockIcon className="h-4 w-4 mr-1" />
+                                                    Hạn: {deadlineDate ? deadlineDate.toLocaleDateString('vi-VN') : 'N/A'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center text-sm text-slate-400 gap-3">
-                                            <span>{exam.grade}</span>
-                                            <span>•</span>
-                                            <span className={`flex items-center ${new Date(exam.deadline) < new Date() ? 'text-red-500' : 'text-green-600'}`}>
-                                                <ClockIcon className="h-4 w-4 mr-1" />
-                                                Hạn: {new Date(exam.deadline).toLocaleDateString('vi-VN')}
-                                            </span>
+                                        <div className="mt-4 md:mt-0 flex items-center gap-6">
+                                            <div className="text-right">
+                                                <span className="block text-2xl font-black text-slate-800 leading-none">{exam.exam_results?.[0]?.count || 0}</span>
+                                                <span className="text-[10px] text-slate-400 uppercase font-black">Bài nộp</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })}
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-bold text-xs"
+                                                >
+                                                    Xem kết quả
+                                                </button>
+                                                <button className="p-2 text-slate-400 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="mt-4 md:mt-0 flex items-center gap-6">
-                                        <div className="text-right">
-                                            <span className="block text-2xl font-black text-slate-800 leading-none">{exam.exam_results?.[0]?.count || 0}</span>
-                                            <span className="text-[10px] text-slate-400 uppercase font-black">Bài nộp</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })}
-                                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-bold text-xs"
-                                            >
-                                                Xem kết quả
-                                            </button>
-                                            <button className="p-2 text-slate-400 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </>
@@ -272,7 +283,6 @@ const ExamManager: React.FC = () => {
 
             {viewMode === 'create' && (
                 <div className="max-w-4xl mx-auto">
-                    {/* Step Indicator */}
                     <div className="flex items-center justify-center mb-10">
                         <div className="flex items-center space-x-4">
                             {[1, 2, 3].map((s) => (
