@@ -62,8 +62,8 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         
         if (user) {
             try {
-                // Insert result into Supabase
-                const payload: any = {
+                // Base payload
+                const basePayload = {
                     user_id: user.id,
                     subject_name: subject.name,
                     grade_name: grade.name,
@@ -73,17 +73,36 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                     metadata: { 
                         violations: violations + (cheatDetected ? 1 : 0),
                         is_cheating: cheatDetected || violations >= 1,
-                        auto_submitted: cheatDetected
+                        auto_submitted: cheatDetected,
+                        // Backup exam_id vào metadata phòng khi cột exam_id chưa tạo
+                        exam_id: examId 
                     }
                 };
 
-                // CRITICAL FIX: Gắn ID đề thi vào kết quả để giáo viên có thể lọc được
+                // CHIẾN LƯỢC LƯU THÔNG MINH (Smart Save Strategy)
+                // 1. Thử lưu vào cột exam_id chuẩn
                 if (examId) {
-                    payload.exam_id = examId;
+                    try {
+                        const { error } = await supabase.from('exam_results').insert({
+                            ...basePayload,
+                            exam_id: examId
+                        });
+                        if (error) throw error;
+                    } catch (dbError: any) {
+                        // 2. Nếu lỗi do thiếu cột exam_id, lưu mà không có cột đó (exam_id đã nằm trong metadata rồi)
+                        if (dbError.message?.includes("column") || dbError.code === '42703') {
+                            console.warn("Database missing 'exam_id' column. Saving to metadata only.");
+                            const { error: retryError } = await supabase.from('exam_results').insert(basePayload);
+                            if (retryError) throw retryError;
+                        } else {
+                            throw dbError;
+                        }
+                    }
+                } else {
+                    // Nếu không có examId (làm tự do), lưu bình thường
+                    const { error } = await supabase.from('exam_results').insert(basePayload);
+                    if (error) throw error;
                 }
-
-                const { error } = await supabase.from('exam_results').insert(payload);
-                if (error) throw error;
                 
             } catch (err) {
                  console.error("Error saving results:", err);

@@ -60,43 +60,43 @@ const MATH_6_COURSE_DATA: Course = {
           id: 'm6-c1-l1',
           title: 'Bài 1. Tập hợp.',
           type: 'video',
-          videoUrl: 'https://vcos.cloudstorage.com.vn/1-bucket-1111/T%E1%BA%ADp_h%E1%BB%A3p_c%C3%A1c_s%E1%BB%91_t%E1%BB%B1_nhi%C3%AAn.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=atm305057-s3user%2F20251205%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251205T175548Z&X-Amz-Expires=518352&X-Amz-Signature=fded2c999c06332b12254f3459c77de18beb35bee756642d65f77fe9527a2dd1&X-Amz-SignedHeaders=host'
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%201.%20T%E1%BA%ADp%20h%E1%BB%A3p.mp4'
         },
         {
           id: 'm6-c1-l2',
           title: 'Bài 2. Cách ghi số tự nhiên.',
           type: 'video',
-          videoUrl: '' // Dán link video Bài 2 vào đây
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%202.%20C%C3%A1ch%20ghi%20s%E1%BB%91%20t%E1%BB%B1%20nhi%C3%AAn.mp4' // Dán link video Bài 2 vào đây
         },
         {
           id: 'm6-c1-l3',
           title: 'Bài 3. Thứ tự trong tập hợp các số tự nhiên.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%203.%20Th%E1%BB%A9%20t%E1%BB%B1%20trong%20t%E1%BA%ADp%20h%E1%BB%A3p%20c%C3%A1c%20s%E1%BB%91%20t%E1%BB%B1%20nhi%C3%AAn.mp4'
         },
         {
           id: 'm6-c1-l4',
           title: 'Bài 4. Phép cộng và phép trừ số tự nhiên.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%204.%20Ph%C3%A9p%20c%E1%BB%99ng%20v%C3%A0%20ph%C3%A9p%20tr%E1%BB%AB%20s%E1%BB%91%20t%E1%BB%B1%20nhi%C3%AAn.mp4'
         },
         {
           id: 'm6-c1-l5',
           title: 'Bài 5. Phép nhân và phép chia số tự nhiên.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%205.%20Ph%C3%A9p%20nh%C3%A2n%20v%C3%A0%20ph%C3%A9p%20chia%20s%E1%BB%91%20t%E1%BB%B1%20nhi%C3%AAn.mp4'
         },
         {
           id: 'm6-c1-l6',
           title: 'Bài 6. Luỹ thừa với số mũ tự nhiên.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%206.%20Lu%E1%BB%B9%20th%E1%BB%ABa%20v%E1%BB%9Bi%20s%E1%BB%91%20m%C5%A9%20t%E1%BB%B1%20nhi%C3%AAn.mp4'
         },
         {
           id: 'm6-c1-l7',
           title: 'Bài 7. Thứ tự thực hiện các phép tính.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%201%20to%C3%A1n%206/B%C3%A0i%207.%20Th%E1%BB%A9%20t%E1%BB%B1%20th%E1%BB%B1c%20hi%E1%BB%87n%20c%C3%A1c%20ph%C3%A9p%20t%C3%ADnh.mp4'
         }
       ]
     },
@@ -108,31 +108,31 @@ const MATH_6_COURSE_DATA: Course = {
           id: 'm6-c2-l8',
           title: 'Bài 8. Quan hệ chia hết và tính chất.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%202%20to%C3%A1n%206/B%C3%A0i%208%20Quan%20h%E1%BB%87%20chia%20h%E1%BA%BFt%20v%C3%A0%20t%C3%ADnh%20ch%E1%BA%A5t.mp4'
         },
         {
           id: 'm6-c2-l9',
           title: 'Bài 9. Dấu hiệu chia hết.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%202%20to%C3%A1n%206/B%C3%A0i%209%20D%E1%BA%A5u%20hi%E1%BB%87u%20chia%20h%E1%BA%BFt.mp4'
         },
         {
           id: 'm6-c2-l10',
           title: 'Bài 10. Số nguyên tố.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%202%20to%C3%A1n%206/B%C3%A0i%2010%20S%E1%BB%91%20nguy%C3%AAn%20t%E1%BB%91.mp4'
         },
         {
           id: 'm6-c2-l11',
           title: 'Bài 11. Ước chung. Ước chung lớn nhất.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%202%20to%C3%A1n%206/B%C3%A0i%2011%20%C6%AF%E1%BB%9Bc%20chung.%20%C6%AF%E1%BB%9Bc%20chung%20l%E1%BB%9Bn%20nh%E1%BA%A5t.mp4'
         },
         {
           id: 'm6-c2-l12',
           title: 'Bài 12. Bội chung. Bội chung nhỏ nhất.',
           type: 'video',
-          videoUrl: ''
+          videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%202%20to%C3%A1n%206/B%C3%A0i%2012%20B%E1%BB%99i%20chung.%20B%E1%BB%99i%20chung%20nh%E1%BB%8F%20nh%E1%BA%A5t.mp4'
         }
       ]
     },
@@ -141,60 +141,60 @@ const MATH_6_COURSE_DATA: Course = {
       title: 'CHƯƠNG III. SỐ NGUYÊN.',
       lessons: [
         { id: 'm6-c3-l13', title: 'Bài 13. Tập hợp các số nguyên.', type: 'video', videoUrl: '' },
-        { id: 'm6-c3-l14', title: 'Bài 14. Phép cộng và phép trừ số nguyên.', type: 'video', videoUrl: '' },
-        { id: 'm6-c3-l15', title: 'Bài 15. Quy tắc dấu ngoặc.', type: 'video', videoUrl: '' },
-        { id: 'm6-c3-l16', title: 'Bài 16. Phép nhân số nguyên.', type: 'video', videoUrl: '' },
-        { id: 'm6-c3-l17', title: 'Bài 17. Phép chia hết. Ước và bội của một số nguyên.', type: 'video', videoUrl: '' }
+        { id: 'm6-c3-l14', title: 'Bài 14. Phép cộng và phép trừ số nguyên.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%203/B%C3%A0i%2014.%20Ph%C3%A9p%20c%E1%BB%99ng%20v%C3%A0%20ph%C3%A9p%20tr%E1%BB%AB%20s%E1%BB%91%20nguy%C3%AAn.mp4' },
+        { id: 'm6-c3-l15', title: 'Bài 15. Quy tắc dấu ngoặc.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%203/B%C3%A0i%2015%20%20Quy%20t%E1%BA%AFc%20d%E1%BA%A5u%20ngo%E1%BA%B7c.mp4' },
+        { id: 'm6-c3-l16', title: 'Bài 16. Phép nhân số nguyên.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%203/B%C3%A0i%2016%20Ph%C3%A9p%20nh%C3%A2n%20s%E1%BB%91%20nguy%C3%AAn.mp4' },
+        { id: 'm6-c3-l17', title: 'Bài 17. Phép chia hết. Ước và bội của một số nguyên.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%203/B%C3%A0i%2017.%20Ph%C3%A9p%20chia%20h%E1%BA%BFt.%20%C6%AF%E1%BB%9Bc%20v%C3%A0%20b%E1%BB%99i%20c%E1%BB%A7a%20m%E1%BB%99t%20s%E1%BB%91%20nguy%C3%AAn.mp4' }
       ]
     },
     {
       id: 'm6-c4',
       title: 'CHƯƠNG IV. MỘT SỐ HÌNH PHẲNG TRONG THỰC TIỄN.',
       lessons: [
-        { id: 'm6-c4-l18', title: 'Bài 18. Hình tam giác đều. Hình vuông. Hình lục giác đều.', type: 'video', videoUrl: '' },
-        { id: 'm6-c4-l19', title: 'Bài 19. Hình chữ nhật. Hình thoi. Hình bình hành. Hình thang cân.', type: 'video', videoUrl: '' },
-        { id: 'm6-c4-l20', title: 'Bài 20. Chu vi và diện tích của một số tứ giác đã học.', type: 'video', videoUrl: '' }
+        { id: 'm6-c4-l18', title: 'Bài 18. Hình tam giác đều. Hình vuông. Hình lục giác đều.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%204%20to%C3%A1n%206/B%C3%A0i%2018%20H%C3%ACnh%20tam%20gi%C3%A1c%20%C4%91%E1%BB%81u%2C%20H%C3%ACnh%20vu%C3%B4ng%2C%20H%C3%ACnh%20l%E1%BB%A5c%20gi%C3%A1c%20%C4%91%E1%BB%81u.mp4' },
+        { id: 'm6-c4-l19', title: 'Bài 19. Hình chữ nhật. Hình thoi. Hình bình hành. Hình thang cân.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%204%20to%C3%A1n%206/B%C3%A0i%2019%20H%C3%ACnh%20ch%E1%BB%AF%20nh%E1%BA%ADt%2C%20H%C3%ACnh%20thoi%2C%20H%C3%ACnh%20b%C3%ACnh%20h%C3%A0nh%2C%20H%C3%ACnh%20thang%20c%C3%A2n.mp4' },
+        { id: 'm6-c4-l20', title: 'Bài 20. Chu vi và diện tích của một số tứ giác đã học.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%204%20to%C3%A1n%206/B%C3%A0i%2020%20Chu%20vi%20v%C3%A0%20di%E1%BB%87n%20t%C3%ADch%20c%E1%BB%A7a%20m%E1%BB%99t%20s%E1%BB%91%20t%E1%BB%A9%20gi%C3%A1c%20%C4%91%C3%A3%20h%E1%BB%8Dc.mp4' }
       ]
     },
     {
       id: 'm6-c5',
       title: 'CHƯƠNG V. TÍNH ĐỐI XỨNG CỦA HÌNH PHẲNG TRONG TỰ NHIÊN.',
       lessons: [
-        { id: 'm6-c5-l21', title: 'Bài 21. Hình có trục đối xứng.', type: 'video', videoUrl: '' },
-        { id: 'm6-c5-l22', title: 'Bài 22. Hình có tâm đối xứng.', type: 'video', videoUrl: '' }
+        { id: 'm6-c5-l21', title: 'Bài 21. Hình có trục đối xứng.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%205%20to%C3%A1n%206/B%C3%A0i%2021%20H%C3%ACnh%20c%C3%B3%20tr%E1%BB%A5c%20%C4%91%E1%BB%91i%20x%E1%BB%A9ng.mp4' },
+        { id: 'm6-c5-l22', title: 'Bài 22. Hình có tâm đối xứng.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%205%20to%C3%A1n%206/B%C3%A0i%2022%20H%C3%ACnh%20c%C3%B3%20t%C3%A2m%20%C4%91%E1%BB%91i%20x%E1%BB%A9ng%20v%C3%A0%20ph%E1%BA%A7n%20Luy%E1%BB%87n%20t%E1%BA%ADp%20chung..mp4' }
       ]
     },
     {
       id: 'm6-c6',
       title: 'CHƯƠNG VI. PHÂN SỐ.',
       lessons: [
-        { id: 'm6-c6-l23', title: 'Bài 23. Mở rộng phân số. Phân số bằng nhau.', type: 'video', videoUrl: '' },
+        { id: 'm6-c6-l23', title: 'Bài 23. Mở rộng phân số. Phân số bằng nhau.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%206%20to%C3%A1n%206/B%C3%A0i%2023%20M%E1%BB%9F%20r%E1%BB%99ng%20ph%C3%A2n%20s%E1%BB%91%20Ph%C3%A2n%20s%E1%BB%91%20b%E1%BA%B1ng%20nhau.mp4' },
         { id: 'm6-c6-l24', title: 'Bài 24. So sánh phân số. Hỗn số dương.', type: 'video', videoUrl: '' },
-        { id: 'm6-c6-l25', title: 'Bài 25. Phép cộng và phép trừ phân số.', type: 'video', videoUrl: '' },
-        { id: 'm6-c6-l26', title: 'Bài 26. Phép nhân và phép chia phân số.', type: 'video', videoUrl: '' },
-        { id: 'm6-c6-l27', title: 'Bài 27. Hai bài toán về phân số.', type: 'video', videoUrl: '' }
+        { id: 'm6-c6-l25', title: 'Bài 25. Phép cộng và phép trừ phân số.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%206%20to%C3%A1n%206/B%C3%A0i%2025%20Ph%C3%A9p%20c%E1%BB%99ng%20v%C3%A0%20ph%C3%A9p%20tr%E1%BB%AB%20ph%C3%A2n%20s%E1%BB%91.mp4' },
+        { id: 'm6-c6-l26', title: 'Bài 26. Phép nhân và phép chia phân số.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%206%20to%C3%A1n%206/B%C3%A0i%2026%20Ph%C3%A9p%20nh%C3%A2n%20v%C3%A0%20ph%C3%A9p%20chia%20ph%C3%A2n%20s%E1%BB%91.mp4' },
+        { id: 'm6-c6-l27', title: 'Bài 27. Hai bài toán về phân số.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%206%20to%C3%A1n%206/B%C3%A0i%2027%20Hai%20b%C3%A0i%20to%C3%A1n%20v%E1%BB%81%20ph%C3%A2n%20s%E1%BB%91.mp4' }
       ]
     },
     {
       id: 'm6-c7',
       title: 'CHƯƠNG VII. SỐ THẬP PHÂN.',
       lessons: [
-        { id: 'm6-c7-l28', title: 'Bài 28. Số thập phân.', type: 'video', videoUrl: '' },
-        { id: 'm6-c7-l29', title: 'Bài 29. Tính toán với số thập phân.', type: 'video', videoUrl: '' },
-        { id: 'm6-c7-l30', title: 'Bài 30. Làm tròn và ước lượng.', type: 'video', videoUrl: '' },
-        { id: 'm6-c7-l31', title: 'Bài 31. Một số bài toán về tỉ số và tỉ số phần trăm.', type: 'video', videoUrl: '' }
+        { id: 'm6-c7-l28', title: 'Bài 28. Số thập phân.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%207%20to%C3%A1n%206/B%C3%A0i%2028%20S%E1%BB%91%20th%E1%BA%ADp%20ph%C3%A2n.mp4' },
+        { id: 'm6-c7-l29', title: 'Bài 29. Tính toán với số thập phân.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%207%20to%C3%A1n%206/B%C3%A0i%2029%20T%C3%ADnh%20to%C3%A1n%20v%E1%BB%9Bi%20s%E1%BB%91%20th%E1%BA%ADp%20ph%C3%A2n.mp4' },
+        { id: 'm6-c7-l30', title: 'Bài 30. Làm tròn và ước lượng.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%207%20to%C3%A1n%206/B%C3%A0i%2030%20L%C3%A0m%20tr%C3%B2n%20v%C3%A0%20%C6%B0%E1%BB%9Bc%20l%C6%B0%E1%BB%A3ng.mp4' },
+        { id: 'm6-c7-l31', title: 'Bài 31. Một số bài toán về tỉ số và tỉ số phần trăm.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%207%20to%C3%A1n%206/B%C3%A0i%2031%20M%E1%BB%99t%20s%E1%BB%91%20b%C3%A0i%20to%C3%A1n%20v%E1%BB%81%20t%E1%BB%89%20s%E1%BB%91%20v%C3%A0%20t%E1%BB%89%20s%E1%BB%91%20ph%E1%BA%A7n%20tr%C4%83m.mp4' }
       ]
     },
     {
       id: 'm6-c8',
       title: 'CHƯƠNG VIII. NHỮNG HÌNH HÌNH HỌC CƠ BẢN.',
       lessons: [
-        { id: 'm6-c8-l32', title: 'Bài 32. Điểm và đường thẳng.', type: 'video', videoUrl: '' },
-        { id: 'm6-c8-l33', title: 'Bài 33. Điểm nằm giữa hai điểm. Tia.', type: 'video', videoUrl: '' },
-        { id: 'm6-c8-l34', title: 'Bài 34. Đoạn thẳng. Độ dài đoạn thẳng.', type: 'video', videoUrl: '' },
-        { id: 'm6-c8-l35', title: 'Bài 35. Trung điểm của đoạn thẳng.', type: 'video', videoUrl: '' },
-        { id: 'm6-c8-l36', title: 'Bài 36. Góc.', type: 'video', videoUrl: '' },
-        { id: 'm6-c8-l37', title: 'Bài 37. Số đo góc.', type: 'video', videoUrl: '' }
+        { id: 'm6-c8-l32', title: 'Bài 32. Điểm và đường thẳng.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%208%20to%C3%A1n%206/B%C3%A0i%2032%20S%E1%BB%91%20th%E1%BA%ADp%20ph%C3%A2n%20l%C3%B9i%20v%C3%B4%20h%E1%BA%A1n%20tu%E1%BA%A7n%20ho%C3%A0n.mp4' },
+        { id: 'm6-c8-l33', title: 'Bài 33. Điểm nằm giữa hai điểm. Tia.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%208%20to%C3%A1n%206/B%C3%A0i%2033%20%C6%AF%E1%BB%9Bc%20l%C6%B0%E1%BB%A3ng%20v%C3%A0%20l%C3%A0m%20tr%C3%B2n%20s%E1%BB%91%20th%E1%BA%ADp%20ph%C3%A2n.mp4' },
+        { id: 'm6-c8-l34', title: 'Bài 34. Đoạn thẳng. Độ dài đoạn thẳng.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%208%20to%C3%A1n%206/B%C3%A0i%2034%20L%C3%A0m%20tr%C3%B2n%20v%C3%A0%20%C6%B0%E1%BB%9Bc%20l%C6%B0%E1%BB%A3ng.mp4' },
+        { id: 'm6-c8-l35', title: 'Bài 35. Trung điểm của đoạn thẳng.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%208%20to%C3%A1n%206/B%C3%A0i%2035%20Trung%20%C4%91i%E1%BB%83m%20c%E1%BB%A7a%20%C4%91o%E1%BA%A1n%20th%E1%BA%B3ngx%C3%A1c.mp4' },
+        { id: 'm6-c8-l36', title: 'Bài 36. Góc.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%208%20to%C3%A1n%206/B%C3%A0i%2035%20Trung%20%C4%91i%E1%BB%83m%20c%E1%BB%A7a%20%C4%91o%E1%BA%A1n%20th%E1%BA%B3ngx%C3%A1c.mp4' },
+        { id: 'm6-c8-l37', title: 'Bài 37. Số đo góc.', type: 'video', videoUrl: 'https://atm305057-s3user.vcos.cloudstorage.com.vn/1-bucket-1111/Ch%C6%B0%C6%A1ng%208%20to%C3%A1n%206/B%C3%A0i%2037%20S%E1%BB%91%20%C4%91o%20g%C3%B3c.mp4' }
       ]
     },
     {

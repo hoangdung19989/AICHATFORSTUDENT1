@@ -11,7 +11,9 @@ import {
     DocumentTextIcon,
     TowerIcon,
     ScienceIcon,
-    HistoryIcon
+    HistoryIcon,
+    UserGroupIcon,
+    SparklesIcon
 } from '../components/icons';
 
 export const SUBJECTS: Subject[] = [
@@ -52,4 +54,7 @@ export const MOCK_EXAM_SUBJECTS: MockExamSubject[] = [
     { id: 'mock-english', name: 'Tiếng Anh', icon: TowerIcon, description: 'Đề thi thử chuẩn form vào lớp 10 và THPTQG.', tags: ['Đề chuyên', 'IELTS form', '60 Phút'], color: 'bg-rose-500' },
     { id: 'mock-science', name: 'Khoa học tự nhiên', icon: ScienceIcon, description: 'Đề thi thử tổng hợp KHTN.', tags: ['Thi vào 10', 'Đánh giá năng lực'], color: 'bg-green-500' },
     { id: 'mock-history-geo', name: 'Lịch sử và Địa lí', icon: HistoryIcon, description: 'Đề thi thử Sử - Địa.', tags: ['Thi vào 10', 'Tổng hợp'], color: 'bg-orange-500' },
+    { id: 'mock-informatics', name: 'Tin học', icon: CodeBracketIcon, description: 'Đề thi trắc nghiệm Tin học, lập trình và ứng dụng.', tags: ['Python/Pascal', 'Office', '45 Phút'], color: 'bg-fuchsia-500' },
+    { id: 'mock-technology', name: 'Công nghệ', icon: SparklesIcon, description: 'Đề thi Công nghệ nông nghiệp và công nghiệp.', tags: ['Lý thuyết', 'Thực hành', '45 Phút'], color: 'bg-teal-500' },
+    { id: 'mock-gdcd', name: 'GDCD', icon: UserGroupIcon, description: 'Đề thi Giáo dục công dân, pháp luật và đời sống.', tags: ['Tình huống', 'Pháp luật', '45 Phút'], color: 'bg-pink-500' },
 ];

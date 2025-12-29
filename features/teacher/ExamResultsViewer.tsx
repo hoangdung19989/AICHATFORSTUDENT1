@@ -17,31 +17,96 @@ const ExamResultsViewer: React.FC = () => {
 
     const fetchResults = async () => {
         setIsLoading(true);
+        setResults([]);
         try {
+            // 1. LẤY DANH SÁCH KẾT QUẢ THI
+            // Sử dụng logic lọc kép: Hoặc là cột exam_id trùng, hoặc là trong metadata có exam_id trùng
             let query = supabase
                 .from('exam_results')
-                .select(`
-                    *,
-                    profiles:user_id (full_name, email, school_name, grade_name)
-                `)
+                .select('*')
                 .order('created_at', { ascending: false });
 
-            // LOGIC LỌC QUAN TRỌNG: Chỉ hiện kết quả của đề thi này
             if (filterExamId) {
-                query = query.eq('exam_id', filterExamId);
+                // Cách lọc an toàn: Thử lọc bằng cột exam_id trước
+                // Nếu cột không tồn tại, Supabase thường sẽ báo lỗi ở dòng này, nên ta dùng .or() để linh hoạt
+                // Tuy nhiên, cú pháp .or trong PostgREST hơi phức tạp khi kết hợp JSON.
+                // Giải pháp đơn giản: Lấy hết kết quả gần đây (limit), sau đó lọc client-side để an toàn tuyệt đối
+                // Vì database trường học thường không quá lớn, lấy 500 records mới nhất là đủ.
+                
+                const { data: rawData, error } = await query.limit(500);
+                
+                if (error) throw error;
+
+                // Lọc Client-side để đảm bảo hoạt động dù cột exam_id có hay không
+                const filteredData = (rawData || []).filter((r: any) => {
+                    const matchColumn = r.exam_id === filterExamId;
+                    const matchMeta = r.metadata?.exam_id === filterExamId;
+                    return matchColumn || matchMeta;
+                });
+
+                if (filteredData.length > 0) {
+                    await fetchProfilesAndMerge(filteredData);
+                } else {
+                    setResults([]);
+                }
             } else {
-                // Nếu xem tổng quát (không có filterExamId), ta chỉ nên xem các bài thi "mock" (thi thử) 
-                // hoặc bài thi do giáo viên này tạo (cần logic phức tạp hơn ở backend).
-                // Tạm thời hiển thị tất cả để giáo viên có cái nhìn tổng quan.
+                // Xem tất cả (không lọc ID)
+                const { data, error } = await query.limit(100);
+                if (error) throw error;
+                await fetchProfilesAndMerge(data || []);
             }
 
-            const { data, error } = await query;
-            if (error) throw error;
-            setResults(data || []);
         } catch (err) {
             console.error("Lỗi lấy kết quả thi:", err);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // 2. HÀM PHỤ: LẤY THÔNG TIN HỌC SINH VÀ GHÉP VÀO KẾT QUẢ (MANUAL JOIN)
+    // Cách này tránh được lỗi "Could not find relationship" nếu Foreign Key chưa chuẩn
+    const fetchProfilesAndMerge = async (examData: any[]) => {
+        if (examData.length === 0) {
+            setResults([]);
+            return;
+        }
+
+        // Lấy danh sách user_id duy nhất
+        const userIds = Array.from(new Set(examData.map(r => r.user_id))).filter(Boolean);
+
+        if (userIds.length === 0) {
+            setResults(examData); // Không có user_id hợp lệ
+            return;
+        }
+
+        try {
+            const { data: profiles, error } = await supabase
+                .from('profiles')
+                .select('id, full_name, email, school_name, grade_name')
+                .in('id', userIds);
+            
+            if (error) {
+                console.warn("Không thể lấy thông tin profile:", error.message);
+                // Vẫn hiển thị kết quả thi dù không có tên
+                setResults(examData); 
+                return;
+            }
+
+            // Tạo Map để tra cứu nhanh
+            const profileMap = new Map();
+            profiles?.forEach(p => profileMap.set(p.id, p));
+
+            // Ghép dữ liệu
+            const merged = examData.map(r => ({
+                ...r,
+                profiles: profileMap.get(r.user_id) || { full_name: 'Học sinh ẩn danh', email: '---' }
+            }));
+
+            setResults(merged);
+
+        } catch (e) {
+            console.error("Merge error:", e);
+            setResults(examData);
         }
     };
 

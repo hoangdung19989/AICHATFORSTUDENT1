@@ -84,7 +84,7 @@ export const generateQuiz = async (subjectName: string, gradeName: string, testT
             contents: [{ role: 'user', parts: [{ text: `Tạo đề thi trắc nghiệm môn ${subjectName} ${gradeName} (${testType.name}, ${semester}). JSON Format: { "sourceSchool": "string", "title": "string", "timeLimit": "string", "questions": [{"question": "...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."], "correctAnswer": "...", "explanation": "..."}], "essayQuestions": [] }` }] }],
             config: { responseMimeType: "application/json" }, 
         });
-        return ensureQuizFormat(JSON.parse(response.text || '{}'));
+        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
     } catch (e: any) { 
         console.error("Quiz Gen Error:", e);
         throw e;
@@ -99,7 +99,7 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
             contents: [{ role: 'user', parts: [{ text: `Tạo đề thi thử ${subjectName} ${gradeName} định dạng JSON chuẩn.` }] }],
             config: { responseMimeType: "application/json" },
         });
-        return ensureQuizFormat(JSON.parse(response.text || '{}'));
+        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
     } catch (e) { throw e; }
 };
 
@@ -112,7 +112,7 @@ export const generatePracticeExercises = async (subjectName: string, gradeName: 
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: { responseMimeType: "application/json" },
         });
-        return ensureQuizFormat(JSON.parse(response.text || '{}'));
+        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
     } catch (e) { throw e; }
 };
 
@@ -124,7 +124,7 @@ export const generatePersonalizedLearningPath = async (focusTopics: string[], gr
             contents: [{ role: 'user', parts: [{ text: `Lộ trình học 7 ngày cho ${gradeName}, tập trung: ${focusTopics.join(", ")}. JSON: { "grade": "string", "studentWeaknesses": [], "weeklyPlan": [{"day": 1, "title": "...", "description": "...", "tasks": [{"type": "video", "content": "...", "difficulty": "Medium"}]}] }` }] }],
             config: { responseMimeType: "application/json" },
         });
-        return JSON.parse(response.text || '{}');
+        return JSON.parse(cleanJsonString(response.text || '{}'));
     } catch (e) { throw new Error("Lỗi tạo lộ trình"); }
 };
 
@@ -182,7 +182,7 @@ export const generateLessonPlan = async (
             contents: [{ role: 'user', parts }],
             config: { responseMimeType: "application/json" }
         });
-        return JSON.parse(response.text || '{}') as LessonPlan;
+        return JSON.parse(cleanJsonString(response.text || '{}')) as LessonPlan;
     } catch (e) { throw e; }
 };
 
@@ -199,6 +199,6 @@ export const generateTestFromMatrixDocument = async (subject: string, grade: str
             contents: [{ role: 'user', parts }],
             config: { responseMimeType: "application/json" }
         });
-        return ensureQuizFormat(JSON.parse(response.text || '{}'));
+        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
     } catch (e) { throw e; }
 };

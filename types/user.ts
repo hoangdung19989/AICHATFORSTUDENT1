@@ -27,6 +27,8 @@ export interface UserProfile {
     ward_commune?: string;
     school_name?: string;
     grade_name?: string; // Bổ sung grade_name
+    date_of_birth?: string;
+    gender?: string;
     created_at?: string;
 }
 
