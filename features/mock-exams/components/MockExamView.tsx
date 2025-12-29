@@ -77,12 +77,14 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                     }
                 };
 
-                // CRITICAL: Attach exam_id if this is a teacher-assigned exam
+                // CRITICAL FIX: Gắn ID đề thi vào kết quả để giáo viên có thể lọc được
                 if (examId) {
                     payload.exam_id = examId;
                 }
 
-                await supabase.from('exam_results').insert(payload);
+                const { error } = await supabase.from('exam_results').insert(payload);
+                if (error) throw error;
+                
             } catch (err) {
                  console.error("Error saving results:", err);
             }

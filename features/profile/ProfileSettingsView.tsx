@@ -24,14 +24,15 @@ const ProfileSettingsView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-    // Form states
-    const [fullName, setFullName] = useState(profile?.full_name || '');
-    const [dob, setDob] = useState(profile?.date_of_birth || '');
-    const [gender, setGender] = useState(profile?.gender || 'Nam');
-    const [grade, setGrade] = useState(profile?.grade_name || ALL_GRADES[0]);
-    const [province, setProvince] = useState(profile?.province || 'Tuyên Quang');
-    const [ward, setWard] = useState(profile?.ward_commune || '');
-    const [school, setSchool] = useState(profile?.school_name || '');
+    // Form states - Lấy dữ liệu từ profile hoặc metadata làm giá trị mặc định
+    const [fullName, setFullName] = useState(profile?.full_name || user?.user_metadata?.full_name || '');
+    const [dob, setDob] = useState(profile?.date_of_birth || user?.user_metadata?.date_of_birth || '');
+    const [gender, setGender] = useState(profile?.gender || user?.user_metadata?.gender || 'Nam');
+    // Ưu tiên lấy grade từ metadata nếu profile chưa có cột này
+    const [grade, setGrade] = useState(profile?.grade_name || user?.user_metadata?.grade_name || ALL_GRADES[0]);
+    const [province, setProvince] = useState(profile?.province || user?.user_metadata?.province || 'Tuyên Quang');
+    const [ward, setWard] = useState(profile?.ward_commune || user?.user_metadata?.ward_commune || '');
+    const [school, setSchool] = useState(profile?.school_name || user?.user_metadata?.school_name || '');
 
     const isTuyenQuang = province === 'Tuyên Quang';
     const wardList = useMemo(() => isTuyenQuang ? Object.keys(SCHOOLS_BY_WARD).sort() : [], [isTuyenQuang]);
@@ -45,27 +46,59 @@ const ProfileSettingsView: React.FC = () => {
         setMessage(null);
         
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({
-                    full_name: fullName,
-                    date_of_birth: dob,
-                    gender,
-                    grade_name: grade,
-                    province,
-                    ward_commune: ward,
-                    school_name: school
-                })
-                .eq('id', user.id);
+            const updates = {
+                full_name: fullName,
+                date_of_birth: dob,
+                gender,
+                province,
+                ward_commune: ward,
+                school_name: school
+            };
 
-            if (error) throw error;
+            // CHIẾN LƯỢC LƯU TRỮ THÔNG MINH (SMART SAVE STRATEGY)
+            // 1. Cố gắng lưu vào bảng 'profiles' (bao gồm cả grade_name)
+            try {
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({ ...updates, grade_name: grade })
+                    .eq('id', user.id);
+
+                if (error) throw error;
+            } catch (dbError: any) {
+                // 2. NẾU LỖI DO THIẾU CỘT (Schema Mismatch)
+                // Lỗi thường gặp: "Could not find the 'grade_name' column of 'profiles'"
+                if (dbError.message?.includes("Could not find") || dbError.code === 'PGRST204' || dbError.code === '42703') {
+                    console.warn("Database schema mismatch detected. Switching to Metadata storage fallback.");
+                    
+                    // Bước 2a: Lưu các thông tin cơ bản (có cột sẵn) vào profiles
+                    const { error: retryError } = await supabase
+                        .from('profiles')
+                        .update(updates)
+                        .eq('id', user.id);
+                    
+                    if (retryError) throw retryError;
+
+                    // Bước 2b: Lưu 'grade_name' vào User Metadata (Phương án dự phòng an toàn)
+                    const { error: metaError } = await supabase.auth.updateUser({
+                        data: { grade_name: grade }
+                    });
+                    
+                    if (metaError) throw metaError;
+                } else {
+                    // Nếu là lỗi khác (mạng, quyền...), ném ra ngoài để hiển thị
+                    throw dbError;
+                }
+            }
             
+            // Cập nhật lại context
             await refreshProfile();
+            
             setMessage({ type: 'success', text: 'Cập nhật hồ sơ thành công! Thông tin lớp học đã được đồng bộ.' });
             
             // Tự động quay về trang chủ sau 1.5s
             setTimeout(() => navigate('home'), 1500);
         } catch (err: any) {
+            console.error(err);
             setMessage({ type: 'error', text: 'Lỗi: ' + err.message });
         } finally {
             setIsLoading(false);

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
@@ -266,10 +267,11 @@ const ExamManager: React.FC = () => {
                                             <div className="flex gap-2">
                                                 <button 
                                                     onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })}
-                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-bold text-xs"
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-bold text-xs shadow-sm hover:shadow"
                                                 >
-                                                    Xem kết quả
+                                                    Xem chi tiết
                                                 </button>
+                                                {/* Tính năng xóa có thể thêm sau */}
                                                 <button className="p-2 text-slate-400 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
                                             </div>
                                         </div>

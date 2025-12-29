@@ -26,6 +26,7 @@ export interface UserProfile {
     province?: string;
     ward_commune?: string;
     school_name?: string;
+    grade_name?: string; // Bổ sung grade_name
     created_at?: string;
 }
 

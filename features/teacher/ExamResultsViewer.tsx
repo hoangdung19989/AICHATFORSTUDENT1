@@ -22,17 +22,24 @@ const ExamResultsViewer: React.FC = () => {
                 .from('exam_results')
                 .select(`
                     *,
-                    profiles:user_id (full_name, email)
+                    profiles:user_id (full_name, email, school_name, grade_name)
                 `)
                 .order('created_at', { ascending: false });
 
-            // Cần logic mapping exam_results với teacher_exams nếu muốn lọc chính xác ID
-            // Tạm thời lọc theo subject_name và grade_name nếu không có bảng trung gian
+            // LOGIC LỌC QUAN TRỌNG: Chỉ hiện kết quả của đề thi này
+            if (filterExamId) {
+                query = query.eq('exam_id', filterExamId);
+            } else {
+                // Nếu xem tổng quát (không có filterExamId), ta chỉ nên xem các bài thi "mock" (thi thử) 
+                // hoặc bài thi do giáo viên này tạo (cần logic phức tạp hơn ở backend).
+                // Tạm thời hiển thị tất cả để giáo viên có cái nhìn tổng quan.
+            }
+
             const { data, error } = await query;
             if (error) throw error;
             setResults(data || []);
         } catch (err) {
-            console.error(err);
+            console.error("Lỗi lấy kết quả thi:", err);
         } finally {
             setIsLoading(false);
         }
@@ -40,10 +47,10 @@ const ExamResultsViewer: React.FC = () => {
 
     useEffect(() => {
         fetchResults();
-    }, []);
+    }, [filterExamId]);
 
     return (
-        <div className="container mx-auto max-w-6xl">
+        <div className="container mx-auto max-w-6xl pb-20">
             <Breadcrumb items={[{ label: 'Công cụ giảng dạy', onClick: () => navigate('teacher-dashboard') }, { label: 'Quản lý đề', onClick: () => navigate('exam-manager') }, { label: 'Báo cáo kết quả' }]} />
             
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -52,7 +59,9 @@ const ExamResultsViewer: React.FC = () => {
                         <UserGroupIcon className="h-9 w-9 mr-3 text-rose-500" />
                         {filterTitle ? `Thí sinh: ${filterTitle}` : 'Tất cả kết quả làm bài'}
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1">Theo dõi danh sách học sinh tham gia và tình trạng làm bài.</p>
+                    <p className="text-slate-500 text-sm mt-1">
+                        {filterExamId ? 'Danh sách học sinh đã nộp bài cho đề thi này.' : 'Theo dõi tình hình làm bài chung của học sinh.'}
+                    </p>
                 </div>
                 <button onClick={fetchResults} className="flex items-center px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all text-sm font-bold text-slate-600">
                     <ArrowPathIcon className="h-4 w-4 mr-2" /> Làm mới
@@ -63,16 +72,22 @@ const ExamResultsViewer: React.FC = () => {
                 {isLoading ? (
                     <div className="py-20"><LoadingSpinner text="Đang thống kê dữ liệu..." /></div>
                 ) : results.length === 0 ? (
-                    <div className="py-20 text-center text-slate-400 italic">Chưa có dữ liệu học sinh làm bài này.</div>
+                    <div className="py-20 text-center text-slate-400 italic flex flex-col items-center">
+                        <div className="bg-slate-50 p-4 rounded-full mb-4">
+                            <UserGroupIcon className="h-8 w-8 text-slate-300" />
+                        </div>
+                        <p>Chưa có học sinh nào nộp bài cho đề thi này.</p>
+                        <p className="text-xs mt-2">Hãy nhắc nhở học sinh vào mục "Thi thử" để làm bài.</p>
+                    </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
                                 <tr>
                                     <th className="px-6 py-5">Học sinh</th>
-                                    <th className="px-6 py-5">Nội dung thi</th>
+                                    <th className="px-6 py-5">Trường / Lớp</th>
                                     <th className="px-6 py-5">Điểm số</th>
-                                    <th className="px-6 py-5">Thời gian</th>
+                                    <th className="px-6 py-5">Thời gian nộp</th>
                                     <th className="px-6 py-5">Tình trạng</th>
                                 </tr>
                             </thead>
@@ -80,22 +95,24 @@ const ExamResultsViewer: React.FC = () => {
                                 {results.map((res) => {
                                     const isCheating = res.metadata?.is_cheating;
                                     const scorePercent = (res.score / res.total_questions) * 100;
+                                    const profile = res.profiles || {};
+                                    
                                     return (
                                         <tr key={res.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
                                                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm mr-3">
-                                                        {res.profiles?.full_name?.charAt(0) || 'H'}
+                                                        {profile.full_name?.charAt(0) || 'H'}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-bold text-slate-800">{res.profiles?.full_name || 'Học sinh ẩn danh'}</p>
-                                                        <p className="text-[10px] text-slate-400">{res.profiles?.email}</p>
+                                                        <p className="text-sm font-bold text-slate-800">{profile.full_name || 'Học sinh ẩn danh'}</p>
+                                                        <p className="text-[10px] text-slate-400">{profile.email}</p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <p className="text-xs font-bold text-slate-700">{res.subject_name}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase">{res.grade_name}</p>
+                                                <p className="text-xs font-bold text-slate-700">{profile.school_name || 'Chưa cập nhật'}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase font-bold">{profile.grade_name || res.grade_name}</p>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
@@ -114,7 +131,7 @@ const ExamResultsViewer: React.FC = () => {
                                             <td className="px-6 py-4">
                                                 {isCheating ? (
                                                     <span className="inline-flex items-center px-2 py-1 rounded-lg bg-red-50 text-red-600 text-[10px] font-bold uppercase ring-1 ring-red-100">
-                                                        <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1" /> Gian lận
+                                                        <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1" /> Gian lận ({res.metadata?.violations || 1} lần)
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center px-2 py-1 rounded-lg bg-green-50 text-green-700 text-[10px] font-bold uppercase ring-1 ring-green-100">
