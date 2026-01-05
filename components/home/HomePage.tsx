@@ -31,7 +31,6 @@ const HomePage: React.FC = () => {
     const isAdmin = role === 'admin';
     const isStudent = role === 'student' || !role;
 
-    // Lấy thông tin lớp: Ưu tiên profile database, sau đó đến metadata auth, cuối cùng mặc định Lớp 6
     const studentGrade = profile?.grade_name || user?.user_metadata?.grade_name || "Lớp 6";
 
     useEffect(() => {
@@ -63,10 +62,6 @@ const HomePage: React.FC = () => {
     const fetchAssignedExams = async () => {
         setIsLoadingExams(true);
         try {
-            // Log để debug (có thể xóa sau)
-            console.log("Đang tìm bài tập cho lớp:", studentGrade);
-
-            // Lấy tất cả đề thi có trạng thái published khớp với khối lớp học sinh
             const { data, error } = await supabase
                 .from('teacher_exams')
                 .select(`
@@ -92,6 +87,11 @@ const HomePage: React.FC = () => {
     };
 
     const handleStartExam = (exam: any) => {
+        const isExpired = new Date(exam.deadline) < new Date();
+        if (isExpired) {
+            alert("Bài tập này đã hết hạn nộp.");
+            return;
+        }
         navigate('mock-exam-view', { 
             examId: exam.id,
             subjectName: exam.subject,
@@ -198,13 +198,17 @@ const HomePage: React.FC = () => {
                                         return (
                                             <button 
                                                 key={exam.id}
-                                                onClick={() => handleStartExam(exam)}
+                                                onClick={() => !isExpired && handleStartExam(exam)}
                                                 className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between group ${
-                                                    isDone ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200 hover:border-brand-primary hover:shadow-md'
+                                                    isDone ? 'bg-slate-50 border-slate-100 opacity-60' : 
+                                                    isExpired ? 'bg-red-50 border-red-100 opacity-60 cursor-not-allowed' :
+                                                    'bg-white border-slate-200 hover:border-brand-primary hover:shadow-md'
                                                 }`}
                                             >
                                                 <div className="min-w-0">
-                                                    <p className={`font-bold text-sm truncate ${isDone ? 'text-slate-500' : 'text-slate-800'}`}>{exam.title}</p>
+                                                    <p className={`font-bold text-sm truncate ${isDone ? 'text-slate-500' : isExpired ? 'text-red-400' : 'text-slate-800'}`}>
+                                                        {exam.title} {isExpired && '(Hết hạn)'}
+                                                    </p>
                                                     <div className="flex items-center mt-1 space-x-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                                         <span className="text-brand-primary">{exam.subject}</span>
                                                         <span>•</span>
@@ -214,7 +218,9 @@ const HomePage: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors ${
-                                                    isDone ? 'bg-green-100 text-green-600' : 'bg-brand-primary/10 text-brand-primary group-hover:bg-brand-primary group-hover:text-white'
+                                                    isDone ? 'bg-green-100 text-green-600' : 
+                                                    isExpired ? 'bg-red-100 text-red-400' :
+                                                    'bg-brand-primary/10 text-brand-primary group-hover:bg-brand-primary group-hover:text-white'
                                                 }`}>
                                                     {isDone ? <CheckCircleIcon className="h-5 w-5" /> : <ArrowRightIcon className="h-4 w-4" />}
                                                 </div>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../../services/supabaseClient';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -26,7 +27,6 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
     const fetchExams = async () => {
         setIsLoading(true);
         try {
-            // Lấy tất cả đề thi Published cho đúng Môn và Khối lớp
             const { data, error } = await supabase
                 .from('teacher_exams')
                 .select(`
@@ -48,13 +48,14 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
 
     const handleSelectTeacherExam = (exam: any) => {
         const isExpired = new Date(exam.deadline) < new Date();
+        if (isExpired) {
+            alert("Kỳ thi này đã hết hạn, bạn không thể tham gia.");
+            return;
+        }
+
         const userResult = exam.exam_results?.find((r: any) => r.user_id === user?.id);
         const isDone = !!userResult;
 
-        if (isExpired) {
-            alert("Kỳ thi này đã hết hạn.");
-            return;
-        }
         if (isDone) {
             if (!window.confirm("Bạn đã nộp bài này. Bạn có muốn làm lại để cải thiện điểm số?")) return;
         }
@@ -63,7 +64,6 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
         let finalQuestions = dbContent.questions || [];
         let examTitle = exam.title;
 
-        // Nếu có mã đề, bốc ngẫu nhiên 1 mã cho học sinh
         if (dbContent.variants && Array.isArray(dbContent.variants) && dbContent.variants.length > 0) {
             const randomIndex = Math.floor(Math.random() * dbContent.variants.length);
             const selectedVariant = dbContent.variants[randomIndex];
@@ -106,16 +106,22 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                                 return (
                                     <button
                                         key={exam.id}
-                                        onClick={() => handleSelectTeacherExam(exam)}
-                                        className={`w-full text-left p-6 bg-white border-2 rounded-3xl transition-all flex items-center justify-between group ${isExpired ? 'opacity-60 grayscale border-slate-100' : 'border-white shadow-sm hover:shadow-xl hover:border-orange-200 hover:-translate-y-1'}`}
+                                        onClick={() => !isExpired && handleSelectTeacherExam(exam)}
+                                        className={`w-full text-left p-6 bg-white border-2 rounded-3xl transition-all flex items-center justify-between group ${
+                                            isExpired 
+                                            ? 'opacity-50 grayscale cursor-not-allowed border-slate-100' 
+                                            : 'border-white shadow-sm hover:shadow-xl hover:border-orange-200 hover:-translate-y-1'
+                                        }`}
                                     >
                                         <div className="flex-1 pr-4">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <h3 className={`text-xl font-bold ${isExpired ? 'text-slate-500' : 'text-slate-800 group-hover:text-orange-600'}`}>{exam.title}</h3>
+                                                <h3 className={`text-xl font-bold ${isExpired ? 'text-slate-400' : 'text-slate-800 group-hover:text-orange-600'}`}>
+                                                    {exam.title} {isExpired && '(Đã hết hạn)'}
+                                                </h3>
                                                 {isDone && <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-md">ĐÃ NỘP</span>}
                                             </div>
                                             <div className="flex items-center text-sm font-medium space-x-4">
-                                                <span className={`flex items-center ${isExpired ? 'text-red-500' : 'text-slate-400'}`}>
+                                                <span className={`flex items-center ${isExpired ? 'text-red-400' : 'text-slate-400'}`}>
                                                     <ClockIcon className="w-4 h-4 mr-1.5" />
                                                     Hạn: {new Date(exam.deadline).toLocaleDateString('vi-VN')}
                                                 </span>
@@ -123,7 +129,11 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                                                 <span className="text-slate-400">{exam.subject}</span>
                                             </div>
                                         </div>
-                                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all ${isExpired ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-500 group-hover:bg-orange-500 group-hover:text-white'}`}>
+                                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all ${
+                                            isExpired 
+                                            ? 'bg-slate-100 text-slate-300' 
+                                            : 'bg-orange-50 text-orange-500 group-hover:bg-orange-500 group-hover:text-white'
+                                        }`}>
                                             <ChevronRightIcon className="w-6 h-6" />
                                         </div>
                                     </button>

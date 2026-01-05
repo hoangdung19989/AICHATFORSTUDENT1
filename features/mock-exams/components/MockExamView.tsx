@@ -8,13 +8,13 @@ import type { Quiz, MockExamSubject, TestGrade } from '../../../types/index';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
-import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ClockIcon, PencilSquareIcon, ExclamationTriangleIcon, DocumentTextIcon } from '../../../components/icons';
+import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ClockIcon, PencilSquareIcon, ExclamationTriangleIcon, DocumentTextIcon, XMarkIcon } from '../../../components/icons';
 
 interface MockExamViewProps {
     subject: MockExamSubject;
     grade: TestGrade;
     initialQuizData: Quiz | null;
-    examId?: string; // NEW: Receive Exam ID
+    examId?: string;
     onBack: () => void;
     onBackToSubjects: () => void;
 }
@@ -26,12 +26,37 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
     const [error, setError] = useState<string | null>(null);
     const [showResults, setShowResults] = useState(false);
     const [finalScore, setFinalScore] = useState(0);
+    const [isExpired, setIsExpired] = useState(false);
     
     // Anti-cheat states
     const [violations, setViolations] = useState(0);
     const [showCheatWarning, setShowCheatWarning] = useState(false);
     const [isAutoSubmitted, setIsAutoSubmitted] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // 1. Kiểm tra thời hạn ngay khi vào Component
+    useEffect(() => {
+        const checkDeadline = async () => {
+            if (!examId) return;
+            try {
+                const { data, error } = await supabase
+                    .from('teacher_exams')
+                    .select('deadline')
+                    .eq('id', examId)
+                    .single();
+                
+                if (data?.deadline) {
+                    const deadline = new Date(data.deadline);
+                    if (deadline < new Date()) {
+                        setIsExpired(true);
+                    }
+                }
+            } catch (e) {
+                console.error("Deadline check failed", e);
+            }
+        };
+        checkDeadline();
+    }, [examId]);
 
     const fetchExam = useCallback(async () => {
         if (initialQuizData) return;
@@ -52,7 +77,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         fetchExam();
     }, [fetchExam]);
 
-    // Handle results and submission
     const handleQuizFinish = useCallback(async (score: number, total: number, cheatDetected: boolean = false) => {
         setFinalScore(score);
         setShowResults(true);
@@ -62,7 +86,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         
         if (user) {
             try {
-                // Base payload
                 const basePayload = {
                     user_id: user.id,
                     subject_name: subject.name,
@@ -74,34 +97,38 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                         violations: violations + (cheatDetected ? 1 : 0),
                         is_cheating: cheatDetected || violations >= 1,
                         auto_submitted: cheatDetected,
-                        // Backup exam_id vào metadata phòng khi cột exam_id chưa tạo
                         exam_id: examId 
                     }
                 };
 
-                // CHIẾN LƯỢC LƯU THÔNG MINH (Smart Save Strategy)
-                // 1. Thử lưu vào cột exam_id chuẩn
+                // SỬ DỤNG UPSERT: Nếu đã làm rồi thì chỉ cập nhật điểm (tránh nhân bản người làm)
                 if (examId) {
-                    try {
-                        const { error } = await supabase.from('exam_results').insert({
+                    // Để Upsert hoạt động chính xác theo người dùng + mã đề, 
+                    // ta cần tìm kết quả cũ của chính người này cho đề này trước (nếu DB chưa có constraint unique)
+                    const { data: existing } = await supabase
+                        .from('exam_results')
+                        .select('id, score')
+                        .eq('user_id', user.id)
+                        .eq('exam_id', examId)
+                        .maybeSingle();
+
+                    if (existing) {
+                        // Nếu đã có kết quả và điểm mới cao hơn thì cập nhật
+                        if (score > existing.score) {
+                            await supabase.from('exam_results').update({
+                                ...basePayload,
+                                exam_id: examId
+                            }).eq('id', existing.id);
+                        }
+                    } else {
+                        // Nếu chưa có thì chèn mới
+                        await supabase.from('exam_results').insert({
                             ...basePayload,
                             exam_id: examId
                         });
-                        if (error) throw error;
-                    } catch (dbError: any) {
-                        // 2. Nếu lỗi do thiếu cột exam_id, lưu mà không có cột đó (exam_id đã nằm trong metadata rồi)
-                        if (dbError.message?.includes("column") || dbError.code === '42703') {
-                            console.warn("Database missing 'exam_id' column. Saving to metadata only.");
-                            const { error: retryError } = await supabase.from('exam_results').insert(basePayload);
-                            if (retryError) throw retryError;
-                        } else {
-                            throw dbError;
-                        }
                     }
                 } else {
-                    // Nếu không có examId (làm tự do), lưu bình thường
-                    const { error } = await supabase.from('exam_results').insert(basePayload);
-                    if (error) throw error;
+                    await supabase.from('exam_results').insert(basePayload);
                 }
                 
             } catch (err) {
@@ -116,9 +143,8 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         handleNextQuestion, formatTime, progress, score
     } = useQuiz({ quizData, onQuizFinish: (s, t) => handleQuizFinish(s, t) });
 
-    // Anti-cheat Logic
     useEffect(() => {
-        if (isLoading || showResults || !quizData) return;
+        if (isLoading || showResults || !quizData || isExpired) return;
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
@@ -152,7 +178,7 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
             window.removeEventListener('blur', handleBlur);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [isLoading, showResults, quizData, score, handleQuizFinish, isAutoSubmitted]);
+    }, [isLoading, showResults, quizData, score, handleQuizFinish, isAutoSubmitted, isExpired]);
 
     const enterFullscreen = () => {
         if (containerRef.current) {
@@ -162,9 +188,27 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         }
     };
 
-    const handleRetake = () => {
-        window.location.reload();
-    };
+    if (isExpired) {
+        return (
+            <div className="container mx-auto max-w-2xl mt-20 text-center animate-scale-in">
+                <div className="bg-white p-12 rounded-[2.5rem] shadow-2xl border border-slate-200">
+                    <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <ClockIcon className="h-12 w-12 text-red-600" />
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-800 mb-4">KỲ THI ĐÃ KẾT THÚC</h2>
+                    <p className="text-slate-500 text-lg mb-10 leading-relaxed">
+                        Thời gian làm bài cho đợt thi này đã hết hạn. Bạn không thể tiếp tục thực hiện bài thi này nữa.
+                    </p>
+                    <button 
+                        onClick={onBackToSubjects}
+                        className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-900 transition-all shadow-lg"
+                    >
+                        Quay lại danh sách môn học
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (isLoading) {
         return (
@@ -176,9 +220,7 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
     }
 
     if (showResults && quizData) {
-        // Kiểm tra xem đây có phải đề từ giáo viên hay không để ẩn đáp án chi tiết
         const isTeacherExam = quizData.sourceSchool === "Đề thi Giáo viên";
-
         return (
             <div className="container mx-auto max-w-4xl">
                 {isAutoSubmitted && (
@@ -193,9 +235,9 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                 <TestResultsView 
                     score={finalScore} 
                     totalQuestions={quizData.questions.length} 
-                    onRetake={handleRetake} 
+                    onRetake={() => window.location.reload()} 
                     onBackToSubjects={onBackToSubjects}
-                    hideDetails={isTeacherExam} // Ẩn chi tiết nếu là đề giáo viên
+                    hideDetails={isTeacherExam}
                 />
             </div>
         );
@@ -205,7 +247,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
 
     return (
         <div ref={containerRef} className="max-w-4xl mx-auto px-4 py-6 bg-slate-50 min-h-screen relative overflow-y-auto">
-            {/* Fullscreen Trigger Overlay for First Click */}
             {!document.fullscreenElement && !showResults && (
                 <div className="fixed inset-0 z-[100] bg-slate-900/90 flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-md">
                     <ExclamationTriangleIcon className="h-20 w-20 text-yellow-500 mb-6" />
@@ -222,7 +263,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                 </div>
             )}
 
-            {/* Cheat Warning Modal */}
             {showCheatWarning && !isAutoSubmitted && (
                 <div className="fixed inset-0 z-[110] bg-red-600/95 flex items-center justify-center p-6 backdrop-blur-lg">
                     <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
@@ -255,16 +295,9 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                          <div className="flex flex-col">
                              <span className="text-slate-500 font-bold uppercase tracking-wider text-xs sm:text-sm">{quizData.title || 'ĐỀ THI THỬ'}</span>
-                             {/* Show External Link Button if available */}
                              {quizData.externalLink && (
-                                <a 
-                                    href={quizData.externalLink} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center mt-2 text-indigo-600 hover:text-indigo-800 font-bold text-xs"
-                                >
-                                    <DocumentTextIcon className="h-4 w-4 mr-1" />
-                                    Mở file đề gốc (PDF)
+                                <a href={quizData.externalLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center mt-2 text-indigo-600 hover:text-indigo-800 font-bold text-xs">
+                                    <DocumentTextIcon className="h-4 w-4 mr-1" /> Mở file đề gốc (PDF)
                                 </a>
                              )}
                          </div>
@@ -283,14 +316,9 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                 </div>
 
                 <div className="p-6 sm:p-10">
-                    {/* Image Illustration */}
                     {currentQuestion.image && (
                         <div className="mb-6 flex justify-center">
-                            <img 
-                                src={currentQuestion.image} 
-                                alt="Hình minh họa" 
-                                className="max-h-64 object-contain rounded-lg border border-slate-200"
-                            />
+                            <img src={currentQuestion.image} alt="Hình minh họa" className="max-h-64 object-contain rounded-lg border border-slate-200" />
                         </div>
                     )}
 
@@ -301,19 +329,13 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                             const isSelected = option === selectedAnswer;
                             const optionLabel = String.fromCharCode(65 + index);
                             let buttonClass = 'border-slate-200 bg-white hover:border-brand-primary hover:bg-slate-50';
-                            
-                            // LOGIC MỚI: Nếu đang làm bài, hiện màu chọn bình thường
-                            // Nếu đã trả lời (isAnswered) và KHÔNG phải đề giáo viên, thì mới hiện Đúng/Sai.
-                            // Nếu là đề giáo viên, ta giữ trạng thái đã chọn (ví dụ màu xám đậm hoặc xanh dương) nhưng KHÔNG tiết lộ đáp án đúng/sai.
                             const isTeacherExam = quizData.sourceSchool === "Đề thi Giáo viên";
 
                             if (isAnswered) {
                                 if (isTeacherExam) {
-                                    // Chế độ giấu đáp án: Chỉ highlight cái đã chọn
                                     if (isSelected) buttonClass = 'bg-brand-primary/10 border-brand-primary ring-2 ring-brand-primary/20 text-brand-primary';
                                     else buttonClass = 'opacity-50 grayscale border-slate-100';
                                 } else {
-                                    // Chế độ luyện tập thường: Hiện xanh/đỏ
                                     if (isCorrect) buttonClass = 'bg-green-50 border-green-500 ring-2 ring-green-200';
                                     else if (isSelected) buttonClass = 'bg-red-50 border-red-500 ring-2 ring-red-200';
                                     else buttonClass = 'opacity-50 grayscale border-slate-100';
@@ -321,10 +343,7 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                             }
 
                             return (
-                                 <button
-                                    key={index} onClick={() => handleAnswerSelect(option)} disabled={isAnswered}
-                                    className={`w-full text-left flex items-start p-5 rounded-2xl border-2 transition-all duration-200 ${buttonClass}`}
-                                >
+                                 <button key={index} onClick={() => handleAnswerSelect(option)} disabled={isAnswered} className={`w-full text-left flex items-start p-5 rounded-2xl border-2 transition-all duration-200 ${buttonClass}`}>
                                     <span className={`text-lg font-black mr-4 ${isAnswered && !isTeacherExam && isCorrect ? 'text-green-600' : 'text-slate-400'}`}>{optionLabel}.</span>
                                     <span className="text-lg text-slate-700">{option}</span>
                                 </button>
@@ -334,40 +353,12 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                 </div>
 
                 <div className="px-6 py-5 bg-slate-50 border-t border-slate-100 flex justify-end">
-                    <button
-                        onClick={handleNextQuestion} disabled={!isAnswered}
-                        className={`flex items-center px-8 py-3 rounded-xl font-bold transition-all ${!isAnswered ? 'bg-slate-200 text-slate-400' : 'bg-brand-primary text-white shadow-lg shadow-indigo-200 hover:-translate-y-0.5'}`}
-                    >
+                    <button onClick={handleNextQuestion} disabled={!isAnswered} className={`flex items-center px-8 py-3 rounded-xl font-bold transition-all ${!isAnswered ? 'bg-slate-200 text-slate-400' : 'bg-brand-primary text-white shadow-lg shadow-indigo-200 hover:-translate-y-0.5'}`}>
                         {currentQuestionIndex === quizData.questions.length - 1 ? 'Nộp bài ngay' : 'Câu tiếp theo'}
                         <ArrowRightCircleIcon className="h-5 w-5 ml-2" />
                     </button>
                 </div>
             </div>
-            
-            {quizData.essayQuestions && quizData.essayQuestions.length > 0 && (
-                <div className="mt-8 bg-white rounded-2xl p-6 border border-amber-200 shadow-sm">
-                    <div className="flex items-center mb-4">
-                        <PencilSquareIcon className="h-6 w-6 text-amber-600 mr-2" />
-                        <h3 className="font-bold text-amber-800">PHẦN TỰ LUẬN (GHI RA GIẤY)</h3>
-                    </div>
-                    {quizData.essayQuestions.map((q, i) => (
-                        <div key={i} className="mb-4 last:mb-0 p-4 bg-amber-50/50 rounded-xl border border-amber-100">
-                            <p className="font-bold text-slate-700 text-sm mb-1">Câu {i + 1}:</p>
-                            {/* Hiển thị ảnh minh họa cho câu tự luận */}
-                            {q.image && (
-                                <div className="mb-3">
-                                    <img 
-                                        src={q.image} 
-                                        alt="Hình minh họa" 
-                                        className="max-h-64 object-contain rounded-lg border border-amber-200"
-                                    />
-                                </div>
-                            )}
-                            <p className="text-slate-800">{q.question}</p>
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 };
