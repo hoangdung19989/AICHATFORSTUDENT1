@@ -20,7 +20,7 @@ interface MockExamViewProps {
 }
 
 const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuizData, examId, onBack, onBackToSubjects }) => {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [quizData, setQuizData] = useState<Quiz | null>(initialQuizData);
     const [isLoading, setIsLoading] = useState(!initialQuizData);
     const [error, setError] = useState<string | null>(null);
@@ -86,6 +86,9 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         
         if (user) {
             try {
+                // Lấy tên học sinh để lưu đệm vào metadata (giải quyết lỗi không hiện tên ở phía GV)
+                const studentName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Học sinh';
+
                 const basePayload = {
                     user_id: user.id,
                     subject_name: subject.name,
@@ -94,6 +97,8 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                     total_questions: total,
                     exam_type: 'mock',
                     metadata: { 
+                        student_name: studentName, // LƯU TÊN TRỰC TIẾP
+                        student_email: user.email,
                         violations: violations + (cheatDetected ? 1 : 0),
                         is_cheating: cheatDetected || violations >= 1,
                         auto_submitted: cheatDetected,
@@ -103,8 +108,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
 
                 // SỬ DỤNG UPSERT: Nếu đã làm rồi thì chỉ cập nhật điểm (tránh nhân bản người làm)
                 if (examId) {
-                    // Để Upsert hoạt động chính xác theo người dùng + mã đề, 
-                    // ta cần tìm kết quả cũ của chính người này cho đề này trước (nếu DB chưa có constraint unique)
                     const { data: existing } = await supabase
                         .from('exam_results')
                         .select('id, score')
@@ -114,7 +117,7 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
 
                     if (existing) {
                         // Nếu đã có kết quả và điểm mới cao hơn thì cập nhật
-                        if (score > existing.score) {
+                        if (score >= existing.score) {
                             await supabase.from('exam_results').update({
                                 ...basePayload,
                                 exam_id: examId
@@ -135,7 +138,7 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                  console.error("Error saving results:", err);
             }
         }
-    }, [user, subject.name, grade.name, violations, examId]);
+    }, [user, profile, subject.name, grade.name, violations, examId]);
 
     const {
         currentQuestion, currentQuestionIndex, selectedAnswer, isAnswered, 

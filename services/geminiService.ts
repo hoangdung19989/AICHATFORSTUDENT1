@@ -41,11 +41,21 @@ const ensureQuizFormat = (data: any): Quiz => {
     if (!data) {
         return { title: "Lỗi dữ liệu", sourceSchool: "", timeLimit: "", questions: [] };
     }
+    
+    // Chuẩn hóa danh sách câu hỏi trắc nghiệm
+    const questions = Array.isArray(data.questions) ? data.questions.map((q: any) => ({
+        question: q.question || "Câu hỏi không có nội dung",
+        options: Array.isArray(q.options) ? q.options : ["A. Đáp án 1", "B. Đáp án 2", "C. Đáp án 3", "D. Đáp án 4"],
+        correctAnswer: q.correctAnswer || "",
+        explanation: q.explanation || "Chưa có giải thích cho câu hỏi này.",
+        topics: Array.isArray(q.topics) ? q.topics : []
+    })) : [];
+
     return {
-        sourceSchool: data.sourceSchool || "AI Tutor",
+        sourceSchool: data.sourceSchool || "Hệ thống AI Tutor",
         title: data.title || "Bài tập tự luyện",
-        timeLimit: data.timeLimit || "Không giới hạn",
-        questions: Array.isArray(data.questions) ? data.questions : [],
+        timeLimit: data.timeLimit || "20 phút",
+        questions: questions,
         essayQuestions: Array.isArray(data.essayQuestions) ? data.essayQuestions : [],
         semester: data.semester
     };
@@ -106,14 +116,41 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
 export const generatePracticeExercises = async (subjectName: string, gradeName: string, lessonTitle: string): Promise<Quiz> => {
     try {
         const ai = getAiClient();
-        const prompt = `Tạo 10 câu hỏi trắc nghiệm ôn tập môn ${subjectName} ${gradeName} bài: "${lessonTitle}". JSON Format.`;
+        const prompt = `Bạn là chuyên gia soạn thảo học liệu. Hãy tạo 10 câu hỏi trắc nghiệm để học sinh luyện tập môn ${subjectName} ${gradeName}, bài học: "${lessonTitle}".
+        
+        YÊU CẦU:
+        1. Nội dung câu hỏi phải bám sát chương trình giáo khoa mới.
+        2. Mỗi câu hỏi có 4 lựa chọn (A, B, C, D).
+        3. Có đáp án đúng và lời giải thích cực kỳ chi tiết.
+        
+        TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON THEO ĐỊNH DẠNG SAU:
+        {
+          "sourceSchool": "Ngân hàng câu hỏi AI OnLuyen",
+          "title": "Luyện tập: ${lessonTitle}",
+          "timeLimit": "20 phút",
+          "questions": [
+            {
+              "question": "Nội dung câu hỏi...",
+              "options": ["A. Nội dung A", "B. Nội dung B", "C. Nội dung C", "D. Nội dung D"],
+              "correctAnswer": "Nội dung đáp án đúng (phải trùng khớp chính xác với 1 trong 4 lựa chọn trên)",
+              "explanation": "Giải thích tại sao đáp án đó đúng...",
+              "topics": ["${lessonTitle}"]
+            }
+          ]
+        }`;
+
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: { responseMimeType: "application/json" },
         });
-        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
-    } catch (e) { throw e; }
+        
+        const rawText = response.text || '{}';
+        return ensureQuizFormat(JSON.parse(cleanJsonString(rawText)));
+    } catch (e: any) { 
+        console.error("Lỗi tạo bài tập tự luyện:", e);
+        throw new Error("Hệ thống AI đang quá tải hoặc không thể tạo câu hỏi cho bài học này. Vui lòng thử lại sau vài giây."); 
+    }
 };
 
 export const generatePersonalizedLearningPath = async (focusTopics: string[], gradeName: string): Promise<LearningPath> => {

@@ -11,7 +11,6 @@ const ExamResultsViewer: React.FC = () => {
     const [results, setResults] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Nếu params có examId, tức là giáo viên đang xem kết quả của 1 đợt thi cụ thể
     const filterExamId = params?.examId;
     const filterTitle = params?.examTitle;
 
@@ -19,39 +18,32 @@ const ExamResultsViewer: React.FC = () => {
         setIsLoading(true);
         setResults([]);
         try {
-            // 1. LẤY DANH SÁCH KẾT QUẢ THI
-            // Sử dụng logic lọc kép: Hoặc là cột exam_id trùng, hoặc là trong metadata có exam_id trùng
             let query = supabase
                 .from('exam_results')
                 .select('*')
                 .order('created_at', { ascending: false });
 
             if (filterExamId) {
-                // Cách lọc an toàn: Thử lọc bằng cột exam_id trước
-                // Nếu cột không tồn tại, Supabase thường sẽ báo lỗi ở dòng này, nên ta dùng .or() để linh hoạt
-                // Tuy nhiên, cú pháp .or trong PostgREST hơi phức tạp khi kết hợp JSON.
-                // Giải pháp đơn giản: Lấy hết kết quả gần đây (limit), sau đó lọc client-side để an toàn tuyệt đối
-                // Vì database trường học thường không quá lớn, lấy 500 records mới nhất là đủ.
-                
-                const { data: rawData, error } = await query.limit(500);
-                
+                const { data: rawData, error } = await query.limit(1000);
                 if (error) throw error;
 
-                // Lọc Client-side để đảm bảo hoạt động dù cột exam_id có hay không
                 const filteredData = (rawData || []).filter((r: any) => {
                     const matchColumn = r.exam_id === filterExamId;
                     const matchMeta = r.metadata?.exam_id === filterExamId;
                     return matchColumn || matchMeta;
                 });
+                
+                // Sau khi lọc, chỉ giữ lại kết quả mới nhất/cao nhất của mỗi học sinh cho đề này (Double Check)
+                const uniqueResults = new Map();
+                filteredData.forEach(r => {
+                    if (!uniqueResults.has(r.user_id) || r.score > uniqueResults.get(r.user_id).score) {
+                        uniqueResults.set(r.user_id, r);
+                    }
+                });
 
-                if (filteredData.length > 0) {
-                    await fetchProfilesAndMerge(filteredData);
-                } else {
-                    setResults([]);
-                }
+                await fetchProfilesAndMerge(Array.from(uniqueResults.values()));
             } else {
-                // Xem tất cả (không lọc ID)
-                const { data, error } = await query.limit(100);
+                const { data, error } = await query.limit(200);
                 if (error) throw error;
                 await fetchProfilesAndMerge(data || []);
             }
@@ -63,50 +55,55 @@ const ExamResultsViewer: React.FC = () => {
         }
     };
 
-    // 2. HÀM PHỤ: LẤY THÔNG TIN HỌC SINH VÀ GHÉP VÀO KẾT QUẢ (MANUAL JOIN)
-    // Cách này tránh được lỗi "Could not find relationship" nếu Foreign Key chưa chuẩn
     const fetchProfilesAndMerge = async (examData: any[]) => {
         if (examData.length === 0) {
             setResults([]);
             return;
         }
 
-        // Lấy danh sách user_id duy nhất
         const userIds = Array.from(new Set(examData.map(r => r.user_id))).filter(Boolean);
-
         if (userIds.length === 0) {
-            setResults(examData); // Không có user_id hợp lệ
+            setResults(examData);
             return;
         }
 
         try {
+            // Thử lấy profile, nhưng nếu lỗi do RLS (không cho xem profile người khác) thì cũng không sao
             const { data: profiles, error } = await supabase
                 .from('profiles')
                 .select('id, full_name, email, school_name, grade_name')
                 .in('id', userIds);
             
-            if (error) {
-                console.warn("Không thể lấy thông tin profile:", error.message);
-                // Vẫn hiển thị kết quả thi dù không có tên
-                setResults(examData); 
-                return;
-            }
-
-            // Tạo Map để tra cứu nhanh
             const profileMap = new Map();
             profiles?.forEach(p => profileMap.set(p.id, p));
 
-            // Ghép dữ liệu
-            const merged = examData.map(r => ({
-                ...r,
-                profiles: profileMap.get(r.user_id) || { full_name: 'Học sinh ẩn danh', email: '---' }
-            }));
+            const merged = examData.map(r => {
+                // Ưu tiên 1: Tên trong metadata (vì metadata lưu trực tiếp lúc nộp bài, không bị chặn bởi RLS)
+                // Ưu tiên 2: Tên từ join profile (nếu DB cho phép xem)
+                // Ưu tiên 3: Email từ metadata
+                const metaName = r.metadata?.student_name;
+                const metaEmail = r.metadata?.student_email;
+                const dbProfile = profileMap.get(r.user_id);
+                
+                return {
+                    ...r,
+                    display_name: metaName || dbProfile?.full_name || metaEmail?.split('@')[0] || 'Học sinh ẩn danh',
+                    display_email: metaEmail || dbProfile?.email || '---',
+                    display_school: dbProfile?.school_name || 'Chưa cập nhật',
+                    display_grade: dbProfile?.grade_name || r.grade_name
+                };
+            });
 
             setResults(merged);
-
         } catch (e) {
-            console.error("Merge error:", e);
-            setResults(examData);
+            console.warn("Merge profiles error, using fallback metadata:", e);
+            setResults(examData.map(r => ({
+                ...r,
+                display_name: r.metadata?.student_name || r.metadata?.student_email?.split('@')[0] || 'Học sinh ẩn danh',
+                display_email: r.metadata?.student_email || '---',
+                display_school: 'Xem trong metadata',
+                display_grade: r.grade_name
+            })));
         }
     };
 
@@ -160,24 +157,23 @@ const ExamResultsViewer: React.FC = () => {
                                 {results.map((res) => {
                                     const isCheating = res.metadata?.is_cheating;
                                     const scorePercent = (res.score / res.total_questions) * 100;
-                                    const profile = res.profiles || {};
                                     
                                     return (
                                         <tr key={res.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
                                                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm mr-3">
-                                                        {profile.full_name?.charAt(0) || 'H'}
+                                                        {res.display_name.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-bold text-slate-800">{profile.full_name || 'Học sinh ẩn danh'}</p>
-                                                        <p className="text-[10px] text-slate-400">{profile.email}</p>
+                                                        <p className="text-sm font-bold text-slate-800">{res.display_name}</p>
+                                                        <p className="text-[10px] text-slate-400">{res.display_email}</p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <p className="text-xs font-bold text-slate-700">{profile.school_name || 'Chưa cập nhật'}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase font-bold">{profile.grade_name || res.grade_name}</p>
+                                                <p className="text-xs font-bold text-slate-700">{res.display_school}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase font-bold">{res.display_grade}</p>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">

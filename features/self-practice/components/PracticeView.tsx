@@ -8,7 +8,7 @@ import type { Quiz, SelfPracticeSubject, TestGrade, PracticeLesson } from '../..
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
-import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon } from '../../../components/icons';
+import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon } from '../../../components/icons';
 
 interface PracticeViewProps {
     subject: SelfPracticeSubject;
@@ -76,7 +76,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
 
     if (isLoading) {
         return (
-            <div>
+            <div className="max-w-4xl mx-auto px-4 py-6">
                  <Breadcrumb items={[
                     { label: 'Tự học', onClick: onBackToSelfStudy },
                     { label: 'Tự luyện', onClick: onBackToSubjects },
@@ -84,17 +84,49 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     { label: grade.name, onClick: onBack },
                     { label: 'Luyện tập' }
                 ]} />
-                <LoadingSpinner text="AI đang tạo bài luyện tập..." subText="Vui lòng chờ trong giây lát." />
+                <div className="bg-white rounded-[2.5rem] shadow-xl p-12 flex flex-col items-center">
+                    <LoadingSpinner text="AI đang soạn thảo bài luyện tập..." subText={`Đang trích xuất kiến thức bài: ${lesson.title}`} />
+                </div>
             </div>
         );
     }
     
-    if (error) {
+    // Xử lý trường hợp có dữ liệu nhưng mảng câu hỏi rỗng
+    const hasNoQuestions = !isLoading && quizData && quizData.questions.length === 0;
+
+    if (error || hasNoQuestions) {
         return (
-            <div className="text-center p-8 bg-white rounded-lg shadow-sm">
-                <h3 className="text-xl font-bold text-red-600">Lỗi tạo bài tập</h3>
-                <p className="text-slate-600 my-4">{error}</p>
-                <button onClick={onRetry} className="bg-sky-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-sky-500">Thử lại</button>
+            <div className="max-w-4xl mx-auto px-4 py-6 animate-scale-in">
+                <Breadcrumb items={[
+                    { label: 'Tự học', onClick: onBackToSelfStudy },
+                    { label: 'Tự luyện', onClick: onBackToSubjects },
+                    { label: subject.name, onClick: onBack },
+                    { label: grade.name, onClick: onBack },
+                    { label: 'Luyện tập' }
+                ]} />
+                <div className="bg-white rounded-[2.5rem] shadow-xl p-12 text-center border-2 border-red-50">
+                    <div className="w-20 h-20 bg-red-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <ExclamationTriangleIcon className="h-10 w-10 text-red-600" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-4">Ối! Có lỗi xảy ra</h3>
+                    <p className="text-slate-500 mb-10 max-w-md mx-auto">
+                        {error || "Hệ thống AI không thể tạo câu hỏi cho bài học này ngay bây giờ. Điều này có thể do máy chủ đang bận."}
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        <button 
+                            onClick={onRetry} 
+                            className="bg-brand-primary text-white font-black px-8 py-4 rounded-2xl hover:bg-brand-primary-dark shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                        >
+                            THỬ LẠI LẦN NỮA
+                        </button>
+                        <button 
+                            onClick={onBack} 
+                            className="bg-slate-100 text-slate-600 font-black px-8 py-4 rounded-2xl hover:bg-slate-200 transition-all"
+                        >
+                            CHỌN BÀI KHÁC
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -104,14 +136,14 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
     }
 
     if (!quizData || !currentQuestion) {
-        return <p>Không có dữ liệu bài tập.</p>;
+        return null; // Đang chuyển trạng thái
     }
     
-    const progress = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
+    const progressPercent = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
     const isUserCorrect = selectedAnswer === currentQuestion.correctAnswer;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="max-w-4xl mx-auto px-4 py-6 animate-slide-up">
             <Breadcrumb items={[
                 { label: 'Tự học', onClick: onBackToSelfStudy },
                 { label: 'Tự luyện', onClick: onBackToSubjects },
@@ -121,38 +153,52 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
             ]} />
 
             {/* Main Quiz Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden relative">
                 {/* Header Section */}
-                <div className="px-6 pt-6 pb-2">
-                     <div className="flex justify-between items-center text-sm font-medium text-slate-500 mb-4">
-                        <span className="truncate pr-4">{quizData.sourceSchool || subject.name}</span>
-                        <span>{lesson.title}</span>
+                <div className="px-8 pt-8 pb-4 bg-slate-50/50">
+                     <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">
+                        <span className="bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">{quizData.sourceSchool || subject.name}</span>
+                        <span className="text-brand-primary">Đang luyện tập bài học</span>
                     </div>
+
+                    <h1 className="text-lg font-bold text-slate-700 mb-6 text-center">{lesson.title}</h1>
 
                     {/* Progress Bar */}
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 mb-4">
-                        <div className="bg-brand-blue h-1.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
+                    <div className="relative h-3 w-full bg-slate-200 rounded-full overflow-hidden mb-2 shadow-inner">
+                        <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-brand-primary to-indigo-400 transition-all duration-700 ease-out rounded-full" 
+                            style={{ width: `${progressPercent}%` }}
+                        ></div>
                     </div>
 
-                    <p className="text-slate-500 font-semibold text-sm">Câu {currentQuestionIndex + 1}/{quizData.questions.length}</p>
+                    <div className="flex justify-between items-center">
+                        <p className="text-slate-400 font-black text-[10px] uppercase">Tiến trình: {currentQuestionIndex + 1}/{quizData.questions.length} Câu</p>
+                        {isAnswered && (
+                            <span className={`text-[10px] font-black uppercase ${isUserCorrect ? 'text-green-500' : 'text-red-500'}`}>
+                                {isUserCorrect ? 'Chính xác! +1' : 'Tiếc quá!'}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Content Section */}
-                <div className="p-6">
+                <div className="p-8 sm:p-12">
                     {/* Illustration */}
                     {currentQuestion.image && (
-                        <div className="mb-6 flex justify-center">
+                        <div className="mb-10 flex justify-center">
                             <img 
                                 src={currentQuestion.image} 
                                 alt="Hình minh họa" 
-                                className="max-h-64 object-contain rounded-lg border border-slate-200"
+                                className="max-h-64 object-contain rounded-3xl border-4 border-slate-50 shadow-lg"
                             />
                         </div>
                     )}
 
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-8 leading-snug">
-                        {currentQuestion.question}
-                    </h2>
+                    <div className="mb-10">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 leading-snug">
+                            {currentQuestion.question}
+                        </h2>
+                    </div>
 
                     <div className="space-y-4">
                         {currentQuestion.options.map((option, index) => {
@@ -161,22 +207,23 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                             const optionLabel = String.fromCharCode(65 + index);
                             const optionText = cleanOptionText(option);
 
-                            let buttonClass = 'border-slate-300 bg-white hover:border-sky-400 hover:bg-sky-50';
-                            let textClass = 'text-slate-700';
-                            let labelClass = 'text-slate-500';
+                            let buttonClass = 'border-slate-100 bg-white hover:border-brand-primary hover:bg-indigo-50/30';
+                            let textClass = 'text-slate-600';
+                            let labelClass = 'bg-slate-100 text-slate-400';
 
                             if (isAnswered) {
                                 if (isCorrect) {
-                                    buttonClass = 'bg-green-50 border-green-500 ring-1 ring-green-500';
-                                    textClass = 'text-green-900 font-medium';
-                                    labelClass = 'text-green-700 font-bold';
+                                    buttonClass = 'bg-green-50 border-green-500 ring-4 ring-green-100';
+                                    textClass = 'text-green-900 font-bold';
+                                    labelClass = 'bg-green-500 text-white';
                                 } else if (isSelected) {
-                                    buttonClass = 'bg-red-50 border-red-500 ring-1 ring-red-500';
-                                    textClass = 'text-red-900 font-medium';
-                                    labelClass = 'text-red-700 font-bold';
+                                    buttonClass = 'bg-red-50 border-red-500 ring-4 ring-red-100';
+                                    textClass = 'text-red-900 font-bold';
+                                    labelClass = 'bg-red-500 text-white';
                                 } else {
-                                    buttonClass = 'border-slate-200 bg-slate-50 opacity-60';
-                                    textClass = 'text-slate-500';
+                                    buttonClass = 'border-slate-50 bg-white opacity-40 grayscale';
+                                    textClass = 'text-slate-400';
+                                    labelClass = 'bg-slate-50 text-slate-200';
                                 }
                             }
 
@@ -185,36 +232,35 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                                     key={index}
                                     onClick={() => handleAnswerSelect(option)}
                                     disabled={isAnswered}
-                                    className={`w-full text-left flex items-start p-4 rounded-xl border transition-all duration-200 group ${buttonClass}`}
+                                    className={`w-full text-left flex items-center p-5 rounded-2xl border-2 transition-all duration-300 group ${buttonClass}`}
                                 >
-                                    <span className={`text-lg font-bold mr-4 flex-shrink-0 leading-tight ${labelClass} ${!isAnswered && 'group-hover:text-brand-blue'}`}>
-                                        {optionLabel}.
+                                    <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black mr-4 flex-shrink-0 transition-colors ${labelClass}`}>
+                                        {optionLabel}
                                     </span>
-                                    <span className={`text-lg leading-tight ${textClass}`}>
+                                    <span className={`text-lg flex-1 ${textClass}`}>
                                         {optionText}
                                     </span>
-                                    {isAnswered && isCorrect && <CheckCircleIcon className="h-6 w-6 ml-auto flex-shrink-0 text-green-600" />}
-                                    {isAnswered && isSelected && !isCorrect && <XCircleIcon className="h-6 w-6 ml-auto flex-shrink-0 text-red-600" />}
+                                    {isAnswered && isCorrect && <CheckCircleIcon className="h-6 w-6 ml-3 text-green-600 shrink-0" />}
+                                    {isAnswered && isSelected && !isCorrect && <XCircleIcon className="h-6 w-6 ml-3 text-red-600 shrink-0" />}
                                 </button>
                             );
                         })}
                     </div>
                 
                     {isAnswered && (
-                        <div className={`mt-8 p-5 rounded-xl border animate-slide-in-bottom ${
-                            isUserCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                        <div className={`mt-10 p-6 rounded-[2rem] border-2 animate-scale-in ${
+                            isUserCorrect ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'
                         }`}>
-                            <h4 className={`font-bold mb-2 flex items-center ${
-                                isUserCorrect ? 'text-green-800' : 'text-red-800'
+                            <h4 className={`text-xs font-black mb-3 flex items-center uppercase tracking-widest ${
+                                isUserCorrect ? 'text-green-600' : 'text-red-600'
                             }`}>
                                 {isUserCorrect ? (
-                                    <CheckCircleIcon className="h-5 w-5 mr-2 text-green-600" />
+                                    <><CheckCircleIcon className="h-4 w-4 mr-2" /> Tại sao bạn đúng?</>
                                 ) : (
-                                    <XCircleIcon className="h-5 w-5 mr-2 text-red-600" />
+                                    <><XCircleIcon className="h-4 w-4 mr-2" /> Ghi nhớ kiến thức</>
                                 )}
-                                Giải thích
                             </h4>
-                            <p className={`${isUserCorrect ? 'text-green-700' : 'text-red-700'} leading-relaxed`}>
+                            <p className={`${isUserCorrect ? 'text-green-800' : 'text-red-800'} leading-relaxed text-sm font-medium`}>
                                 {currentQuestion.explanation}
                             </p>
                         </div>
@@ -222,18 +268,18 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                 </div>
 
                 {/* Footer Section */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <div className="px-8 py-6 bg-slate-50/80 border-t border-slate-100 flex justify-end items-center gap-6">
                     <button
                         onClick={handleNextQuestion}
                         disabled={!isAnswered}
-                        className={`flex items-center px-6 py-3 rounded-lg font-bold transition-all duration-200 ${
+                        className={`flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 ${
                             !isAnswered 
-                            ? 'bg-slate-200 text-white cursor-not-allowed' 
-                            : 'bg-brand-blue text-white hover:bg-brand-blue-dark shadow-md hover:shadow-lg hover:-translate-y-0.5'
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                            : 'bg-brand-primary text-white hover:bg-brand-primary-dark shadow-xl shadow-indigo-100 hover:-translate-y-1 active:translate-y-0'
                         }`}
                     >
-                        {currentQuestionIndex === quizData.questions.length - 1 ? 'Hoàn thành' : 'Câu tiếp theo'}
-                        <ArrowRightCircleIcon className="h-5 w-5 ml-2" />
+                        {currentQuestionIndex === quizData.questions.length - 1 ? 'Hoàn thành bài tập' : 'Câu tiếp theo'}
+                        <ArrowRightCircleIcon className="h-5 w-5 ml-3" />
                     </button>
                 </div>
             </div>
