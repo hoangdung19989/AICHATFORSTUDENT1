@@ -51,7 +51,7 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
         setShowResults(true);
         if (user) {
             try {
-                // Lấy tên học sinh để lưu vào metadata
+                // Lấy tên học sinh để lưu vào metadata (Fix lỗi ẩn danh)
                 const studentName = 
                     user.user_metadata?.full_name || 
                     profile?.full_name || 
@@ -68,7 +68,7 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                     metadata: { 
                         semester, 
                         test_type: testType.name,
-                        student_name: studentName, // LƯU CỨNG TÊN VÀO ĐÂY
+                        student_name: studentName, // QUAN TRỌNG
                         student_email: user.email
                     }
                 });

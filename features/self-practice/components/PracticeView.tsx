@@ -34,7 +34,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         setShowResults(true);
         if (user) {
             try {
-                // Lấy tên học sinh để lưu vào metadata
+                // Lấy tên học sinh để lưu vào metadata (Fix lỗi ẩn danh)
                 const studentName = 
                     user.user_metadata?.full_name || 
                     profile?.full_name || 
@@ -49,7 +49,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     total_questions: total,
                     exam_type: 'practice',
                     metadata: {
-                        student_name: studentName, // LƯU CỨNG TÊN
+                        student_name: studentName, // QUAN TRỌNG
                         student_email: user.email,
                         lesson_title: lesson.title
                     }
