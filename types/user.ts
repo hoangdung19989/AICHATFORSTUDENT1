@@ -26,7 +26,7 @@ export interface UserProfile {
     province?: string;
     ward_commune?: string;
     school_name?: string;
-    grade_name?: string; // Bổ sung grade_name
+    grade_name?: string;
     date_of_birth?: string;
     gender?: string;
     created_at?: string;
@@ -40,11 +40,13 @@ export interface DailyTask {
         type: 'video' | 'practice';
         content: string;
         difficulty?: 'Easy' | 'Medium' | 'Hard';
+        estimatedTime?: string;
     }[];
 }
 
 export interface LearningPath {
     grade?: string;
     studentWeaknesses: string[];
+    performanceSummary?: string;
     weeklyPlan: DailyTask[];
 }
