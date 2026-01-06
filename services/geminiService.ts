@@ -2,9 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Subject, Quiz, TestType, LearningPath, LessonPlan } from '../types/index';
 import { getChatGPTResponse } from './openaiService';
+import { API_KEYS } from '../config';
 
 const getAiClient = () => {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Ưu tiên lấy từ config.ts, nếu không có thì lấy từ biến môi trường
+    let apiKey = API_KEYS.GEMINI_API_KEY;
+    if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY')) {
+        apiKey = process.env.API_KEY || '';
+    }
+    return new GoogleGenAI({ apiKey });
 };
 
 const cleanJsonString = (text: string): string => {
@@ -45,7 +51,6 @@ const ensureQuizFormat = (data: any): Quiz => {
  */
 const callAiWithFallback = async (prompt: string, isJson: boolean = false, subjectName: string = "Giáo dục"): Promise<string> => {
     try {
-        // Thử chạy Gemini trước
         const ai = getAiClient();
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
@@ -57,9 +62,8 @@ const callAiWithFallback = async (prompt: string, isJson: boolean = false, subje
         throw new Error("GEMINI_EMPTY_RESPONSE");
         
     } catch (geminiError) {
-        console.warn("⚠️ Gemini gặp lỗi, đang kích hoạt ChatGPT làm dự phòng...", geminiError);
+        console.warn("⚠️ Gemini gặp lỗi hoặc hết quota, đang dùng ChatGPT dự phòng...");
         try {
-            // Nếu Gemini chết, gọi ChatGPT ứng cứu
             return await getChatGPTResponse(subjectName, prompt, isJson);
         } catch (openaiError) {
             console.error("❌ Cả 2 hệ thống AI đều không khả dụng.");
@@ -88,7 +92,6 @@ export const generatePracticeExercises = async (subjectName: string, gradeName: 
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
-// Các hàm khác như generateQuiz, generateMockExam... cũng sẽ sử dụng cơ chế callAiWithFallback tương tự.
 export const generateQuiz = async (subjectName: string, gradeName: string, testType: TestType, semester: string = 'Cả năm'): Promise<Quiz> => {
     const prompt = `Tạo đề thi ${subjectName} ${gradeName} (${testType.name}). Trả về JSON chuẩn đề thi.`;
     const responseText = await callAiWithFallback(prompt, true, subjectName);
@@ -102,8 +105,6 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
 };
 
 export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
-    // Với phân tích tài liệu nặng, ta vẫn ưu tiên Gemini do khả năng Multimodal tốt hơn
-    // Nhưng nếu chỉ có Text, ChatGPT có thể thay thế.
     const ai = getAiClient();
     const promptText = `Trích xuất đề thi sang JSON.`;
     const parts: any[] = [{ text: promptText }];
