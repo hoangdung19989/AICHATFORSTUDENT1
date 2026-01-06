@@ -171,9 +171,107 @@ export const parseExamDocument = async (base64Data: string, mimeType: string, te
 
 export const generateLessonPlan = async (subject: string, grade: string, topic: string, bookSeries: string, contextFiles: { data: string, mimeType: string }[], oldContentText?: string, appendixText?: string): Promise<LessonPlan> => {
     const ai = getAiClient();
-    const parts: any[] = [{ text: `Soạn giáo án 5512 môn ${subject} ${grade} bài ${topic} theo bộ sách ${bookSeries}. Tích hợp năng lực số.` }];
-    if (oldContentText) parts.push({ text: `Nội dung tham khảo: ${oldContentText}` });
-    if (appendixText) parts.push({ text: `Yêu cầu cần đạt: ${appendixText}` });
+    
+    const prompt = `
+    Đóng vai là chuyên gia giáo dục, hãy soạn Kế hoạch bài dạy (Giáo án) môn ${subject} ${grade} bài "${topic}" (${bookSeries}) theo công văn 5512.
+    
+    YÊU CẦU QUAN TRỌNG NHẤT:
+    Tích hợp Năng lực số dựa trên văn bản 3456/BGDĐT-GDPT. 
+    BẮT BUỘC SỬ DỤNG CHÍNH XÁC CÁC MÃ SAU (KHÔNG ĐƯỢC BỊA MÃ KHÁC):
+
+    1. Khai thác dữ liệu và thông tin:
+       - 1.1.TC1a/b/c/d (Duyệt, tìm kiếm dữ liệu)
+       - 1.2.TC1a/b (Đánh giá dữ liệu)
+       - 1.3.TC1a/b (Quản lý dữ liệu)
+    2. Giao tiếp và hợp tác:
+       - 2.1.TC1a/b (Tương tác qua công nghệ)
+       - 2.2.TC1a/b/c (Chia sẻ thông tin)
+       - 2.3.TC1a/b (Công dân số)
+       - 2.4.TC1a (Hợp tác qua công nghệ)
+       - 2.5.TC1a/b/c (Quy tắc ứng xử)
+       - 2.6.TC1a/b/c (Quản lý danh tính số)
+    3. Sáng tạo nội dung số:
+       - 3.1.TC1a/b (Phát triển nội dung)
+       - 3.2.TC1a (Tích hợp và tái tạo)
+       - 3.3.TC1a (Bản quyền)
+       - 3.4.TC1a (Lập trình/Tư duy máy tính)
+    4. An toàn:
+       - 4.1.TC1a/b/c/d (Bảo vệ thiết bị)
+       - 4.2.TC1a/b/c (Bảo vệ dữ liệu cá nhân)
+       - 4.3.TC1a/b/c (Sức khỏe và an sinh)
+       - 4.4.TC1a (Bảo vệ môi trường)
+    5. Giải quyết vấn đề:
+       - 5.1.TC1a/b (Vấn đề kỹ thuật)
+       - 5.2.TC1a/b/c (Nhu cầu công nghệ)
+       - 5.3.TC1a/b (Sáng tạo công nghệ)
+       - 5.4.TC1a/b (Cải thiện năng lực)
+    6. Sử dụng trí tuệ nhân tạo (AI):
+       - 6.1.TC1a/b (Hiểu biết về AI)
+       - 6.2.TC1a/b/c (Sử dụng AI)
+       - 6.3.TC1a/b (Đánh giá AI)
+
+    HÃY CHỌN 2-3 HOẠT ĐỘNG TRONG BÀI CÓ THỂ ỨNG DỤNG CÔNG NGHỆ VÀ GÁN MÃ NĂNG LỰC SỐ TƯƠNG ỨNG TỪ DANH SÁCH TRÊN.
+
+    CẤU TRÚC JSON TRẢ VỀ (BẮT BUỘC):
+    {
+      "period": "Số tiết",
+      "topic": "${topic}",
+      "grade": "${grade}",
+      "objectives": {
+        "knowledge": ["Yêu cầu kiến thức 1", "..."],
+        "commonCompetencies": ["Tự chủ và tự học", "Giao tiếp và hợp tác", "Giải quyết vấn đề và sáng tạo"],
+        "digitalCompetencies": [
+           { "domain": "Miền 1. Khai thác dữ liệu", "code": "1.1.TC1a", "description": "Học sinh tìm kiếm được thông tin..." }
+        ],
+        "virtues": ["Chăm chỉ", "Trung thực", "Trách nhiệm"]
+      },
+      "materials": {
+        "teacher": ["Máy tính", "Tivi", "Phần mềm..."],
+        "student": ["SGK", "Vở ghi"]
+      },
+      "activities": [
+        {
+          "id": 1,
+          "title": "Hoạt động 1: Khởi động",
+          "goal": "...",
+          "content": "...",
+          "product": "...",
+          "execution": {
+            "step1": "GV chuyển giao...",
+            "step2": "HS thực hiện...",
+            "step3": "Báo cáo...",
+            "step4": "Kết luận..."
+          }
+        },
+        {
+          "id": 2,
+          "title": "Hoạt động 2: Hình thành kiến thức",
+          "goal": "...",
+          "content": "...",
+          "product": "...",
+          "execution": {
+            "step1": "GV yêu cầu HS dùng Google để tìm kiếm...",
+            "step2": "HS thực hiện...",
+            "step3": "...",
+            "step4": "..."
+          }
+        }
+      ],
+      "nlsAnalysisTable": [
+        {
+          "index": 1,
+          "activityName": "Hoạt động 2: Hình thành kiến thức",
+          "organization": "GV yêu cầu HS tìm kiếm thông tin trên Internet...",
+          "competencyDetail": "1.1.TC1a: Xác định nhu cầu thông tin và tìm kiếm dữ liệu."
+        }
+      ],
+      "homework": "..."
+    }
+    `;
+
+    const parts: any[] = [{ text: prompt }];
+    if (oldContentText) parts.push({ text: `Tài liệu tham khảo (Giáo án cũ/Nội dung bài): ${oldContentText}` });
+    if (appendixText) parts.push({ text: `Phụ lục 3 (Yêu cầu cần đạt/Đặc tả): ${appendixText}` });
     contextFiles.forEach(f => parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
     
     const response = await ai.models.generateContent({ 
@@ -188,7 +286,8 @@ export const generateTestFromMatrixDocument = async (subject: string, grade: str
     const ai = getAiClient();
     const prompt = `Tạo đề thi môn ${subject} ${grade} dựa trên ma trận đặc tả đính kèm. 
     Yêu cầu: ${mcCount} câu trắc nghiệm và ${essayCount} câu tự luận. 
-    Đảm bảo độ khó phân bổ đúng như ma trận yêu cầu.`;
+    Đảm bảo độ khó phân bổ đúng như ma trận yêu cầu.
+    Trả về JSON chuẩn đề thi.`;
     
     const parts: any[] = [{ text: prompt }];
     if (textContent) parts.push({ text: textContent });

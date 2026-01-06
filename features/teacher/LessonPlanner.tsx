@@ -145,18 +145,6 @@ const LessonPlanner: React.FC = () => {
                     className="bg-white shadow-2xl p-[2cm] text-black leading-normal border border-slate-300 min-h-[29.7cm]"
                     style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '14pt' }}
                 >
-                    {/* Header */}
-                    <div className="grid grid-cols-2 mb-10" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                        <div className="text-center font-bold">
-                            <p className="text-sm uppercase">TRƯỜNG: .............................</p>
-                            <p className="text-sm uppercase underline">TỔ CHUYÊN MÔN: .................</p>
-                        </div>
-                        <div className="text-center font-bold">
-                            <p className="text-sm">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                            <p className="text-sm underline underline-offset-4">Độc lập - Tự do - Hạnh phúc</p>
-                        </div>
-                    </div>
-
                     <div className="text-center mb-10">
                         <h1 className="font-bold text-2xl uppercase">KẾ HOẠCH BÀI DẠY</h1>
                         <p className="font-bold mt-2">MÔN HỌC: {subject.toUpperCase()}; LỚP: {grade.toUpperCase()}</p>
@@ -300,22 +288,6 @@ const LessonPlanner: React.FC = () => {
                                 ))}
                             </tbody>
                         </table>
-                    </div>
-
-                    {/* Footer Signature */}
-                    <div className="mt-20 grid grid-cols-2 text-center italic" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                        <div>
-                            <p>Đã duyệt của Tổ chuyên môn</p>
-                            <p className="font-bold not-italic mt-2">Tổ trưởng</p>
-                            <div className="h-24"></div>
-                            <p className="font-bold not-italic">..........................................</p>
-                        </div>
-                        <div>
-                            <p>............, ngày .... tháng .... năm 20...</p>
-                            <p className="font-bold not-italic mt-2">Giáo viên soạn</p>
-                            <div className="h-24"></div>
-                            <p className="font-bold not-italic">..........................................</p>
-                        </div>
                     </div>
                 </div>
             </div>
