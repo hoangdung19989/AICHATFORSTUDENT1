@@ -20,7 +20,7 @@ interface QuizViewProps {
 }
 
 const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester, onBack, onBackToSubjects }) => {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [quizData, setQuizData] = useState<Quiz | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -51,6 +51,13 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
         setShowResults(true);
         if (user) {
             try {
+                // Lấy tên học sinh để lưu vào metadata
+                const studentName = 
+                    user.user_metadata?.full_name || 
+                    profile?.full_name || 
+                    user.email?.split('@')[0] || 
+                    'Học sinh';
+
                 await supabase.from('exam_results').insert({
                     user_id: user.id,
                     subject_name: subject.name,
@@ -58,13 +65,18 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                     score,
                     total_questions: total,
                     exam_type: 'test',
-                    metadata: { semester, test_type: testType.name }
+                    metadata: { 
+                        semester, 
+                        test_type: testType.name,
+                        student_name: studentName, // LƯU CỨNG TÊN VÀO ĐÂY
+                        student_email: user.email
+                    }
                 });
             } catch (err) {
                  console.error("Exception saving exam result:", err);
             }
         }
-    }, [user, subject.name, grade.name, semester, testType]);
+    }, [user, profile, subject.name, grade.name, semester, testType]);
     
     const {
         currentQuestion, currentQuestionIndex, selectedAnswer, isAnswered, 

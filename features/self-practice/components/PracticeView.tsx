@@ -25,7 +25,7 @@ interface PracticeViewProps {
 
 const PracticeView: React.FC<PracticeViewProps> = (props) => {
     const { subject, grade, lesson, quizData, isLoading, error, onRetry, onBack, onBackToSubjects, onBackToSelfStudy } = props;
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [showResults, setShowResults] = useState(false);
     const [finalScore, setFinalScore] = useState(0);
 
@@ -34,6 +34,13 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         setShowResults(true);
         if (user) {
             try {
+                // Lấy tên học sinh để lưu vào metadata
+                const studentName = 
+                    user.user_metadata?.full_name || 
+                    profile?.full_name || 
+                    user.email?.split('@')[0] || 
+                    'Học sinh';
+
                 const { error } = await supabase.from('exam_results').insert({
                     user_id: user.id,
                     subject_name: subject.name,
@@ -41,6 +48,11 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     score,
                     total_questions: total,
                     exam_type: 'practice',
+                    metadata: {
+                        student_name: studentName, // LƯU CỨNG TÊN
+                        student_email: user.email,
+                        lesson_title: lesson.title
+                    }
                 });
                 if (error) {
                     console.error("Failed to save practice result:", error.message);

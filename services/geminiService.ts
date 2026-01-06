@@ -111,6 +111,10 @@ const callSmartAI = async (params: AIRequestParams): Promise<string> => {
             try {
                 return await callGemini();
             } catch (geminiError: any) {
+                // Xử lý lỗi Quota của Gemini
+                if (geminiError.message?.includes('429') || geminiError.message?.includes('RESOURCE_EXHAUSTED')) {
+                    throw new Error("Hệ thống AI đang quá tải (Hết Quota). Vui lòng vào Cài đặt > Nhập Gemini API Key cá nhân để tiếp tục sử dụng.");
+                }
                 throw new Error(`Cả 2 AI đều thất bại. GPT: ${gptError.message} | Gemini: ${geminiError.message}`);
             }
         }
@@ -119,6 +123,11 @@ const callSmartAI = async (params: AIRequestParams): Promise<string> => {
         try {
             return await callGemini();
         } catch (geminiError: any) {
+            // Xử lý lỗi Quota của Gemini ngay lập tức
+            if (geminiError.message?.includes('429') || geminiError.message?.includes('RESOURCE_EXHAUSTED')) {
+                throw new Error("Hệ thống AI đang quá tải (Hết Quota). Vui lòng vào Cài đặt > Nhập Gemini API Key cá nhân để tiếp tục sử dụng.");
+            }
+
             console.warn("⚠️ Gemini (Ưu tiên) gặp lỗi, chuyển sang ChatGPT...", geminiError);
             try {
                 return await callChatGPT();
