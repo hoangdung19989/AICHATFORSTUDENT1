@@ -16,7 +16,7 @@ const getOpenAIKey = (): string => {
 
     // 3. Lấy từ shim process.env (được định nghĩa trong vite.config.ts)
     const processKey = (process.env as any).OPENAI_API_KEY;
-    if (processKey) return processKey;
+    if (processKey && !processKey.includes('YOUR_OPENAI_API_KEY')) return processKey;
 
     return '';
 };
@@ -26,7 +26,7 @@ export const getChatGPTResponse = async (subjectName: string, message: string, i
 
     if (!apiKey) {
         console.error("Missing OpenAI API Key");
-        return "⚠️ Lỗi: Hệ thống chưa tìm thấy OpenAI API Key. Hãy điền vào file config.ts hoặc gán VITE_OPENAI_API_KEY trên Vercel và REDEPLOY.";
+        throw new Error("Hệ thống chưa tìm thấy OpenAI API Key. Vui lòng kiểm tra config.ts hoặc cấu hình Vercel.");
     }
 
     try {
@@ -36,6 +36,7 @@ export const getChatGPTResponse = async (subjectName: string, message: string, i
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${apiKey}`
             },
+            mode: 'cors',
             body: JSON.stringify({
                 model: "gpt-4o-mini",
                 messages: [
@@ -56,14 +57,20 @@ export const getChatGPTResponse = async (subjectName: string, message: string, i
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || "Lỗi kết nối OpenAI");
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `Lỗi API OpenAI (${response.status})`);
         }
 
         const data = await response.json();
         return data.choices[0].message.content || "";
     } catch (error: any) {
         console.error("OpenAI API Error:", error);
+        
+        // Handle "Failed to fetch" specifically
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            throw new Error("Không thể kết nối đến máy chủ OpenAI. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau (Lỗi CORS/Network).");
+        }
+        
         throw error;
     }
 };

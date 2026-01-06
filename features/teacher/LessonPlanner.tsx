@@ -13,7 +13,9 @@ import {
     ShieldCheckIcon,
     RobotIcon,
     ChartBarIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    ExclamationTriangleIcon,
+    XCircleIcon
 } from '../../components/icons';
 // @ts-ignore
 import mammoth from 'https://esm.sh/mammoth';
@@ -36,6 +38,7 @@ const LessonPlanner: React.FC = () => {
     
     const [isGenerating, setIsGenerating] = useState(false);
     const [result, setResult] = useState<LessonPlan | null>(null);
+    const [error, setError] = useState<string | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const appendixInputRef = useRef<HTMLInputElement>(null);
@@ -50,7 +53,7 @@ const LessonPlanner: React.FC = () => {
                     const res = await mammoth.extractRawText({ arrayBuffer });
                     callback({ file, extractedText: res.value });
                 } catch (err) {
-                    alert("Không thể đọc file Word này.");
+                    setError("Không thể đọc file Word này. Vui lòng thử file khác.");
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -66,18 +69,22 @@ const LessonPlanner: React.FC = () => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setError(null);
         processFile(file, setOldFile);
     };
 
     const handleAppendixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setError(null);
         processFile(file, setAppendixFile);
     };
 
     const handleGenerate = async () => {
-        if (!lessonName.trim()) { alert("Nhập tên bài học."); return; }
+        if (!lessonName.trim()) { setError("Vui lòng nhập tên bài học."); return; }
         setIsGenerating(true);
+        setError(null);
+        
         try {
             let contextFiles: { data: string, mimeType: string }[] = [];
             let combinedText = oldContentText;
@@ -97,8 +104,12 @@ const LessonPlanner: React.FC = () => {
 
             const plan = await generateLessonPlan(subject, grade, lessonName, bookSeries, contextFiles, combinedText, appendixText);
             setResult(plan);
-        } catch (err: any) { alert("Lỗi: " + err.message); }
-        finally { setIsGenerating(false); }
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || "Đã xảy ra lỗi trong quá trình tạo giáo án.");
+        } finally { 
+            setIsGenerating(false); 
+        }
     };
 
     const downloadAsDoc = () => {
@@ -309,6 +320,21 @@ const LessonPlanner: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {error && (
+                <div className="mb-8 bg-red-50 border-2 border-red-100 rounded-3xl p-6 flex items-start gap-4 animate-scale-in">
+                    <div className="bg-red-100 p-3 rounded-2xl shrink-0">
+                        <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-red-700 mb-1">Đã có lỗi xảy ra!</h3>
+                        <p className="text-red-600 text-sm leading-relaxed">{error}</p>
+                        <button onClick={() => setError(null)} className="mt-3 text-xs font-bold text-red-700 bg-red-100 px-4 py-2 rounded-xl hover:bg-red-200 transition-colors">
+                            Đóng thông báo
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                 <div className="lg:col-span-2 space-y-8">
