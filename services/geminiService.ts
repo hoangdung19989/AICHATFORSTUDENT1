@@ -71,11 +71,11 @@ const callAiWithFallback = async (prompt: string, isJson: boolean = false, subje
         throw new Error("GEMINI_EMPTY");
         
     } catch (geminiError) {
-        console.warn("⚠️ Gemini Fallback Triggered:", geminiError);
+        console.warn("⚠️ Gemini gặp lỗi (Quota/Net), chuyển sang ChatGPT...", geminiError);
         try {
             return await getChatGPTResponse(subjectName, prompt, isJson);
-        } catch (openaiError) {
-            throw new Error("Không thể kết nối với hệ thống trí tuệ nhân tạo.");
+        } catch (openaiError: any) {
+            throw new Error(`Cả 2 hệ thống AI đều bận. Lỗi: ${openaiError.message}`);
         }
     }
 };
@@ -156,22 +156,33 @@ export const parseExamDocument = async (base64Data: string, mimeType: string, te
     - Trích xuất các câu hỏi tự luận (nếu có).
     - Chỉ trả về JSON.`;
     
-    const parts: any[] = [{ text: promptText }];
-    if (textContent) parts.push({ text: textContent });
-    else parts.push({ inlineData: { data: base64Data, mimeType } });
+    // Ưu tiên Gemini vì có khả năng đọc ảnh/file tốt hơn
+    try {
+        const parts: any[] = [{ text: promptText }];
+        if (textContent) parts.push({ text: textContent });
+        else parts.push({ inlineData: { data: base64Data, mimeType } });
 
-    const ai = getAiClient();
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts }],
-        config: { responseMimeType: "application/json" }
-    });
-    return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
+        const ai = getAiClient();
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: [{ parts }],
+            config: { responseMimeType: "application/json" }
+        });
+        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
+    } catch (geminiError) {
+        console.warn("⚠️ Gemini Parse Error -> Switch to ChatGPT (Text Only)", geminiError);
+        // Fallback ChatGPT chỉ hoạt động tốt nếu có textContent (từ file Word).
+        // Nếu là ảnh (base64), ChatGPT API text-only sẽ không đọc được, nhưng ta cứ thử gửi textContent nếu có.
+        if (textContent) {
+            const fallbackPrompt = `${promptText}\n\nNỘI DUNG ĐỀ THI:\n${textContent}`;
+            const gptResponse = await getChatGPTResponse("Giáo dục", fallbackPrompt, true);
+            return ensureQuizFormat(JSON.parse(cleanJsonString(gptResponse)));
+        }
+        throw new Error("Gemini quá tải và không có nội dung văn bản để chuyển sang ChatGPT.");
+    }
 };
 
 export const generateLessonPlan = async (subject: string, grade: string, topic: string, bookSeries: string, contextFiles: { data: string, mimeType: string }[], oldContentText?: string, appendixText?: string): Promise<LessonPlan> => {
-    const ai = getAiClient();
-    
     const prompt = `
     Đóng vai là chuyên gia giáo dục, hãy soạn Kế hoạch bài dạy (Giáo án) môn ${subject} ${grade} bài "${topic}" (${bookSeries}) theo công văn 5512.
     
@@ -269,34 +280,63 @@ export const generateLessonPlan = async (subject: string, grade: string, topic: 
     }
     `;
 
-    const parts: any[] = [{ text: prompt }];
-    if (oldContentText) parts.push({ text: `Tài liệu tham khảo (Giáo án cũ/Nội dung bài): ${oldContentText}` });
-    if (appendixText) parts.push({ text: `Phụ lục 3 (Yêu cầu cần đạt/Đặc tả): ${appendixText}` });
-    contextFiles.forEach(f => parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
-    
-    const response = await ai.models.generateContent({ 
-        model: "gemini-3-flash-preview", 
-        contents: [{ role: 'user', parts }], 
-        config: { responseMimeType: "application/json" } 
-    });
-    return JSON.parse(cleanJsonString(response.text || '{}')) as LessonPlan;
+    // 1. Thử Gemini trước
+    try {
+        const ai = getAiClient();
+        const parts: any[] = [{ text: prompt }];
+        if (oldContentText) parts.push({ text: `Tài liệu tham khảo (Giáo án cũ/Nội dung bài): ${oldContentText}` });
+        if (appendixText) parts.push({ text: `Phụ lục 3 (Yêu cầu cần đạt/Đặc tả): ${appendixText}` });
+        contextFiles.forEach(f => parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
+        
+        const response = await ai.models.generateContent({ 
+            model: "gemini-3-flash-preview", 
+            contents: [{ role: 'user', parts }], 
+            config: { responseMimeType: "application/json" } 
+        });
+        return JSON.parse(cleanJsonString(response.text || '{}')) as LessonPlan;
+    } catch (geminiError) {
+        // 2. Nếu Gemini lỗi (429/Network), chuyển sang ChatGPT
+        console.warn("⚠️ Gemini LessonPlan Error -> Switching to ChatGPT...", geminiError);
+        
+        // Tạo nội dung text tổng hợp để gửi ChatGPT (vì hàm ChatGPT hiện tại chưa hỗ trợ gửi file ảnh trực tiếp qua API wrapper này)
+        let fullPrompt = prompt;
+        if (oldContentText) fullPrompt += `\n\n[TÀI LIỆU THAM KHẢO]:\n${oldContentText}`;
+        if (appendixText) fullPrompt += `\n\n[PHỤ LỤC 3]:\n${appendixText}`;
+        
+        try {
+            const gptResponse = await getChatGPTResponse("Giáo dục", fullPrompt, true);
+            return JSON.parse(cleanJsonString(gptResponse)) as LessonPlan;
+        } catch (openaiError: any) {
+            throw new Error(`Không thể soạn giáo án lúc này. Gemini bị giới hạn và ChatGPT cũng gặp lỗi: ${openaiError.message}`);
+        }
+    }
 };
 
 export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number, textContent?: string): Promise<Quiz> => {
-    const ai = getAiClient();
     const prompt = `Tạo đề thi môn ${subject} ${grade} dựa trên ma trận đặc tả đính kèm. 
     Yêu cầu: ${mcCount} câu trắc nghiệm và ${essayCount} câu tự luận. 
     Đảm bảo độ khó phân bổ đúng như ma trận yêu cầu.
     Trả về JSON chuẩn đề thi.`;
     
-    const parts: any[] = [{ text: prompt }];
-    if (textContent) parts.push({ text: textContent });
-    else parts.push({ inlineData: { data: base64Data, mimeType } });
-    
-    const response = await ai.models.generateContent({ 
-        model: "gemini-3-flash-preview", 
-        contents: [{ role: 'user', parts }], 
-        config: { responseMimeType: "application/json" } 
-    });
-    return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
+    try {
+        const ai = getAiClient();
+        const parts: any[] = [{ text: prompt }];
+        if (textContent) parts.push({ text: textContent });
+        else parts.push({ inlineData: { data: base64Data, mimeType } });
+        
+        const response = await ai.models.generateContent({ 
+            model: "gemini-3-flash-preview", 
+            contents: [{ role: 'user', parts }], 
+            config: { responseMimeType: "application/json" } 
+        });
+        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
+    } catch (geminiError) {
+        console.warn("⚠️ Gemini Matrix Error -> Switch to ChatGPT", geminiError);
+        if (textContent) {
+            const fallbackPrompt = `${prompt}\n\nNỘI DUNG MA TRẬN:\n${textContent}`;
+            const gptResponse = await getChatGPTResponse("Giáo dục", fallbackPrompt, true);
+            return ensureQuizFormat(JSON.parse(cleanJsonString(gptResponse)));
+        }
+        throw new Error("Gemini quá tải. Vui lòng thử lại bằng file Word (chứa text) để hệ thống có thể chuyển sang ChatGPT.");
+    }
 };
