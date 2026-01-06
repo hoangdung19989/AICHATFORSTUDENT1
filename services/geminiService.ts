@@ -1,15 +1,28 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { Subject, Quiz, TestType, LearningPath, LessonPlan } from '../types/index';
 import { getChatGPTResponse } from './openaiService';
 import { API_KEYS } from '../config';
 
+// --- CONFIG & UTILS ---
+
 const getAiClient = () => {
+    // 1. Ưu tiên lấy Key cá nhân từ LocalStorage
+    const localKey = localStorage.getItem('gemini_api_key');
+    if (localKey && localKey.trim().length > 0) {
+        return new GoogleGenAI({ apiKey: localKey });
+    }
+
+    // 2. Lấy Key mặc định từ Config hoặc Env
     let apiKey = API_KEYS.GEMINI_API_KEY;
     if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY')) {
         apiKey = (process.env as any).API_KEY || '';
     }
     return new GoogleGenAI({ apiKey });
+};
+
+const getPreferredAI = (): 'gemini' | 'chatgpt' => {
+    return localStorage.getItem('ai_preference') as 'gemini' | 'chatgpt' || 'gemini';
 };
 
 const cleanJsonString = (text: string): string => {
@@ -55,37 +68,78 @@ const ensureQuizFormat = (data: any): Quiz => {
     };
 };
 
-const callAiWithFallback = async (prompt: string, isJson: boolean = false, subjectName: string = "Giáo dục"): Promise<string> => {
-    try {
+// --- UNIFIED AI CALLER (SMART SWITCHING) ---
+
+interface AIRequestParams {
+    prompt: string;
+    isJson?: boolean;
+    subjectName?: string;
+    images?: { data: string, mimeType: string }[]; // Định dạng ảnh của Gemini
+}
+
+const callSmartAI = async (params: AIRequestParams): Promise<string> => {
+    const preference = getPreferredAI();
+    const { prompt, isJson = false, subjectName = "Giáo dục", images = [] } = params;
+
+    // Helper: Gọi Gemini
+    const callGemini = async () => {
         const ai = getAiClient();
+        const parts: any[] = [{ text: prompt }];
+        images.forEach(img => parts.push({ inlineData: { data: img.data, mimeType: img.mimeType } }));
+        
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: isJson ? { 
-                responseMimeType: "application/json",
-                temperature: 0.7 
-            } : { temperature: 0.8 }
+            contents: [{ role: 'user', parts }],
+            config: isJson ? { responseMimeType: "application/json", temperature: 0.7 } : { temperature: 0.8 }
         });
-        
         if (response.text) return response.text;
-        throw new Error("GEMINI_EMPTY");
-        
-    } catch (geminiError) {
-        console.warn("⚠️ Gemini gặp lỗi (Quota/Net), chuyển sang ChatGPT...", geminiError);
+        throw new Error("GEMINI_EMPTY_RESPONSE");
+    };
+
+    // Helper: Gọi ChatGPT
+    const callChatGPT = async () => {
+        // Chuyển đổi ảnh sang định dạng base64 URI cho ChatGPT
+        const gptImages = images.map(img => `data:${img.mimeType};base64,${img.data}`);
+        return await getChatGPTResponse(subjectName, prompt, isJson, gptImages);
+    };
+
+    if (preference === 'chatgpt') {
         try {
-            return await getChatGPTResponse(subjectName, prompt, isJson);
-        } catch (openaiError: any) {
-            throw new Error(`Cả 2 hệ thống AI đều bận. Lỗi: ${openaiError.message}`);
+            return await callChatGPT();
+        } catch (gptError: any) {
+            console.warn("⚠️ ChatGPT (Ưu tiên) gặp lỗi, chuyển sang Gemini...", gptError);
+            try {
+                return await callGemini();
+            } catch (geminiError: any) {
+                throw new Error(`Cả 2 AI đều thất bại. GPT: ${gptError.message} | Gemini: ${geminiError.message}`);
+            }
+        }
+    } else {
+        // Default: Gemini first
+        try {
+            return await callGemini();
+        } catch (geminiError: any) {
+            console.warn("⚠️ Gemini (Ưu tiên) gặp lỗi, chuyển sang ChatGPT...", geminiError);
+            try {
+                return await callChatGPT();
+            } catch (gptError: any) {
+                throw new Error(`Cả 2 AI đều thất bại. Gemini: ${geminiError.message} | GPT: ${gptError.message}`);
+            }
         }
     }
 };
 
+// --- EXPORTED FUNCTIONS ---
+
 export const getGenericTutorResponse = async (message: string): Promise<string> => {
-    return await callAiWithFallback(message);
+    return await callSmartAI({ prompt: message });
 };
 
 export const getTutorResponse = async (subject: Subject, message: string): Promise<string> => {
-    return await callAiWithFallback(`Bạn là gia sư môn ${subject.name}. Trả lời ngắn gọn, sư phạm: ${message}`, false, subject.name);
+    return await callSmartAI({ 
+        prompt: `Bạn là gia sư môn ${subject.name}. Trả lời ngắn gọn, sư phạm: ${message}`, 
+        subjectName: subject.name 
+    });
 };
 
 export const generatePersonalizedLearningPath = async (focusTopics: string[], gradeName: string, recentPerformance?: string): Promise<LearningPath> => {
@@ -93,7 +147,8 @@ export const generatePersonalizedLearningPath = async (focusTopics: string[], gr
     Các chủ đề cần tập trung: ${focusTopics.join(", ")}. 
     Hiệu suất gần đây: ${recentPerformance}.
     Trả về JSON: { "grade": "string", "studentWeaknesses": ["string"], "weeklyPlan": [{"day": 1, "title": "string", "description": "string", "tasks": [{"type": "video"|"practice", "content": "string", "difficulty": "Easy"|"Medium"|"Hard"}]}] }`;
-    const responseText = await callAiWithFallback(prompt, true);
+    
+    const responseText = await callSmartAI({ prompt, isJson: true });
     return JSON.parse(cleanJsonString(responseText));
 };
 
@@ -101,7 +156,8 @@ export const generatePracticeExercises = async (subjectName: string, gradeName: 
     const prompt = `Tạo 10 câu hỏi trắc nghiệm luyện tập môn ${subjectName} ${gradeName}, bài học: "${lessonTitle}". 
     Đảm bảo kiến thức bám sát SGK Kết nối tri thức. 
     Trả về JSON định dạng: { "title": "Luyện tập: ${lessonTitle}", "questions": [{"question": "...", "options": ["...", "...", "...", "..."], "correctAnswer": "trùng với 1 trong 4 options", "explanation": "..."}] }`;
-    const responseText = await callAiWithFallback(prompt, true, subjectName);
+    
+    const responseText = await callSmartAI({ prompt, isJson: true, subjectName });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
@@ -137,7 +193,7 @@ export const generateQuiz = async (subjectName: string, gradeName: string, testT
       ]
     }`;
 
-    const responseText = await callAiWithFallback(prompt, true, subjectName);
+    const responseText = await callSmartAI({ prompt, isJson: true, subjectName });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
@@ -145,45 +201,31 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
     const prompt = `Tạo đề thi thử vào lớp 10 (hoặc thi kết thúc năm) môn ${subjectName} ${gradeName}. 
     Cấu trúc đề chuẩn 45-60 phút. Bao gồm cả trắc nghiệm và tự luận (nếu môn học yêu cầu).
     Trả về JSON cấu trúc giống đề thi chuyên nghiệp.`;
-    const responseText = await callAiWithFallback(prompt, true, subjectName);
+    
+    const responseText = await callSmartAI({ prompt, isJson: true, subjectName });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
 export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
-    const promptText = `Hãy phân tích tài liệu đề thi đính kèm và trích xuất sang định dạng JSON chuẩn để học sinh làm bài online.
+    let promptText = `Hãy phân tích tài liệu đề thi đính kèm (ảnh hoặc văn bản) và trích xuất sang định dạng JSON chuẩn để học sinh làm bài online.
     Yêu cầu:
     - Trích xuất tất cả câu hỏi trắc nghiệm (đủ câu hỏi, 4 lựa chọn, đáp án đúng, giải thích).
     - Trích xuất các câu hỏi tự luận (nếu có).
     - Chỉ trả về JSON.`;
-    
-    // Ưu tiên Gemini vì có khả năng đọc ảnh/file tốt hơn
-    try {
-        const parts: any[] = [{ text: promptText }];
-        if (textContent) parts.push({ text: textContent });
-        else parts.push({ inlineData: { data: base64Data, mimeType } });
 
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: [{ parts }],
-            config: { responseMimeType: "application/json" }
-        });
-        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
-    } catch (geminiError) {
-        console.warn("⚠️ Gemini Parse Error -> Switch to ChatGPT (Text Only)", geminiError);
-        // Fallback ChatGPT chỉ hoạt động tốt nếu có textContent (từ file Word).
-        // Nếu là ảnh (base64), ChatGPT API text-only sẽ không đọc được, nhưng ta cứ thử gửi textContent nếu có.
-        if (textContent) {
-            const fallbackPrompt = `${promptText}\n\nNỘI DUNG ĐỀ THI:\n${textContent}`;
-            const gptResponse = await getChatGPTResponse("Giáo dục", fallbackPrompt, true);
-            return ensureQuizFormat(JSON.parse(cleanJsonString(gptResponse)));
-        }
-        throw new Error("Gemini quá tải và không có nội dung văn bản để chuyển sang ChatGPT.");
+    // Nếu có textContent (từ file Word), nối vào prompt
+    if (textContent) {
+        promptText += `\n\nNỘI DUNG ĐỀ THI (VĂN BẢN):\n${textContent}`;
     }
+
+    // Chuẩn bị ảnh cho AI (nếu có base64)
+    const images = base64Data ? [{ data: base64Data, mimeType }] : [];
+
+    const responseText = await callSmartAI({ prompt: promptText, isJson: true, images });
+    return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
 export const generateLessonPlan = async (subject: string, grade: string, topic: string, bookSeries: string, contextFiles: { data: string, mimeType: string }[], oldContentText?: string, appendixText?: string): Promise<LessonPlan> => {
-    // Prompt được viết lại để nhấn mạnh việc giữ nguyên nội dung gốc
     const prompt = `
     Bạn là một trợ lý hỗ trợ số hóa giáo án.
     Nhiệm vụ của bạn: Chuyển đổi nội dung giáo án cũ được cung cấp sang định dạng JSON và BỔ SUNG phần tích hợp Năng lực số (NLS).
@@ -247,65 +289,32 @@ export const generateLessonPlan = async (subject: string, grade: string, topic: 
       ],
       "homework": "Dặn dò (Giữ nguyên văn)"
     }
+    
+    ${oldContentText ? `\n\n[NỘI DUNG GIÁO ÁN CŨ - CẦN GIỮ NGUYÊN VĂN]:\n${oldContentText}` : ''}
+    ${appendixText ? `\n\n[PHỤ LỤC 3]:\n${appendixText}` : ''}
     `;
 
-    // 1. Thử Gemini trước
-    try {
-        const ai = getAiClient();
-        const parts: any[] = [{ text: prompt }];
-        if (oldContentText) parts.push({ text: `[NỘI DUNG GIÁO ÁN CŨ - HÃY GIỮ NGUYÊN VĂN]:\n${oldContentText}` });
-        if (appendixText) parts.push({ text: `[TÀI LIỆU PHỤ LỤC 3 - THAM KHẢO]:\n${appendixText}` });
-        contextFiles.forEach(f => parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
-        
-        const response = await ai.models.generateContent({ 
-            model: "gemini-3-flash-preview", 
-            contents: [{ role: 'user', parts }], 
-            config: { responseMimeType: "application/json" } 
-        });
-        return JSON.parse(cleanJsonString(response.text || '{}')) as LessonPlan;
-    } catch (geminiError) {
-        // 2. Nếu Gemini lỗi (429/Network), chuyển sang ChatGPT
-        console.warn("⚠️ Gemini LessonPlan Error -> Switching to ChatGPT...", geminiError);
-        
-        // Tạo nội dung text tổng hợp để gửi ChatGPT
-        let fullPrompt = prompt;
-        if (oldContentText) fullPrompt += `\n\n[NỘI DUNG GIÁO ÁN CŨ - CẦN GIỮ NGUYÊN VĂN]:\n${oldContentText}`;
-        if (appendixText) fullPrompt += `\n\n[PHỤ LỤC 3]:\n${appendixText}`;
-        
-        try {
-            const gptResponse = await getChatGPTResponse("Giáo dục", fullPrompt, true);
-            return JSON.parse(cleanJsonString(gptResponse)) as LessonPlan;
-        } catch (openaiError: any) {
-            throw new Error(`Không thể soạn giáo án lúc này. Gemini bị giới hạn và ChatGPT cũng gặp lỗi: ${openaiError.message}`);
-        }
-    }
+    const responseText = await callSmartAI({ 
+        prompt, 
+        isJson: true, 
+        images: contextFiles // Chuyển danh sách file ảnh (nếu có) để AI đọc
+    });
+    
+    return JSON.parse(cleanJsonString(responseText)) as LessonPlan;
 };
 
 export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number, textContent?: string): Promise<Quiz> => {
-    const prompt = `Tạo đề thi môn ${subject} ${grade} dựa trên ma trận đặc tả đính kèm. 
+    let prompt = `Tạo đề thi môn ${subject} ${grade} dựa trên ma trận đặc tả đính kèm. 
     Yêu cầu: ${mcCount} câu trắc nghiệm và ${essayCount} câu tự luận. 
     Đảm bảo độ khó phân bổ đúng như ma trận yêu cầu.
     Trả về JSON chuẩn đề thi.`;
-    
-    try {
-        const ai = getAiClient();
-        const parts: any[] = [{ text: prompt }];
-        if (textContent) parts.push({ text: textContent });
-        else parts.push({ inlineData: { data: base64Data, mimeType } });
-        
-        const response = await ai.models.generateContent({ 
-            model: "gemini-3-flash-preview", 
-            contents: [{ role: 'user', parts }], 
-            config: { responseMimeType: "application/json" } 
-        });
-        return ensureQuizFormat(JSON.parse(cleanJsonString(response.text || '{}')));
-    } catch (geminiError) {
-        console.warn("⚠️ Gemini Matrix Error -> Switch to ChatGPT", geminiError);
-        if (textContent) {
-            const fallbackPrompt = `${prompt}\n\nNỘI DUNG MA TRẬN:\n${textContent}`;
-            const gptResponse = await getChatGPTResponse("Giáo dục", fallbackPrompt, true);
-            return ensureQuizFormat(JSON.parse(cleanJsonString(gptResponse)));
-        }
-        throw new Error("Gemini quá tải. Vui lòng thử lại bằng file Word (chứa text) để hệ thống có thể chuyển sang ChatGPT.");
+
+    if (textContent) {
+        prompt += `\n\nNỘI DUNG MA TRẬN (VĂN BẢN):\n${textContent}`;
     }
+    
+    const images = base64Data ? [{ data: base64Data, mimeType }] : [];
+
+    const responseText = await callSmartAI({ prompt, isJson: true, images });
+    return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };

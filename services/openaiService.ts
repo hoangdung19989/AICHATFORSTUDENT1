@@ -18,15 +18,38 @@ const getOpenAIKey = (): string => {
     const processKey = (process.env as any).OPENAI_API_KEY;
     if (processKey && !processKey.includes('YOUR_OPENAI_API_KEY')) return processKey;
 
+    // 4. Lấy từ localStorage (User tự nhập)
+    const localKey = localStorage.getItem('openai_api_key');
+    if (localKey) return localKey;
+
     return '';
 };
 
-export const getChatGPTResponse = async (subjectName: string, message: string, isJsonResponse: boolean = false): Promise<string> => {
+export const getChatGPTResponse = async (
+    subjectName: string, 
+    message: string, 
+    isJsonResponse: boolean = false,
+    images: string[] = [] // Hỗ trợ danh sách ảnh base64 (có prefix data:image...)
+): Promise<string> => {
     const apiKey = getOpenAIKey();
 
     if (!apiKey) {
         console.error("Missing OpenAI API Key");
-        throw new Error("Hệ thống chưa tìm thấy OpenAI API Key. Vui lòng kiểm tra config.ts hoặc cấu hình Vercel.");
+        throw new Error("Hệ thống chưa tìm thấy OpenAI API Key. Vui lòng kiểm tra config.ts, biến môi trường hoặc nhập trong Cài đặt.");
+    }
+
+    // Xây dựng payload content
+    const contentPayload: any[] = [{ type: "text", text: message }];
+    
+    if (images && images.length > 0) {
+        images.forEach(img => {
+            // Đảm bảo ảnh có prefix đúng chuẩn data URI
+            const imageUrl = img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
+            contentPayload.push({
+                type: "image_url",
+                image_url: { url: imageUrl }
+            });
+        });
     }
 
     try {
@@ -38,21 +61,22 @@ export const getChatGPTResponse = async (subjectName: string, message: string, i
             },
             mode: 'cors',
             body: JSON.stringify({
-                model: "gpt-4o-mini",
+                model: "gpt-4o-mini", // Dùng model hỗ trợ Vision nhanh và rẻ
                 messages: [
                     {
                         role: "system",
                         content: isJsonResponse 
-                            ? "Bạn là một AI chuyên xuất dữ liệu giáo dục dạng JSON. Chỉ trả về JSON, không kèm văn bản giải thích." 
+                            ? "Bạn là một AI chuyên xuất dữ liệu giáo dục dạng JSON. Chỉ trả về JSON đúng cú pháp, không kèm markdown ```json." 
                             : `Bạn là một chuyên gia giáo dục, gia sư môn ${subjectName}. Hãy trả lời học sinh một cách dễ hiểu, sư phạm. Sử dụng Markdown.`
                     },
                     {
                         role: "user",
-                        content: message
+                        content: contentPayload
                     }
                 ],
                 response_format: isJsonResponse ? { type: "json_object" } : { type: "text" },
-                temperature: 0.7
+                temperature: 0.7,
+                max_tokens: 4000
             })
         });
 

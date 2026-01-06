@@ -12,7 +12,10 @@ import {
     CheckCircleIcon, 
     ArrowPathIcon,
     ShieldCheckIcon,
-    AcademicCapIcon
+    AcademicCapIcon,
+    SparklesIcon,
+    RobotIcon,
+    KeyIcon
 } from '../../components/icons';
 
 const ALL_GRADES = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"];
@@ -24,15 +27,31 @@ const ProfileSettingsView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-    // Form states - Lấy dữ liệu từ profile hoặc metadata làm giá trị mặc định
+    // Form states - Profile
     const [fullName, setFullName] = useState(profile?.full_name || user?.user_metadata?.full_name || '');
     const [dob, setDob] = useState(profile?.date_of_birth || user?.user_metadata?.date_of_birth || '');
     const [gender, setGender] = useState(profile?.gender || user?.user_metadata?.gender || 'Nam');
-    // Ưu tiên lấy grade từ metadata nếu profile chưa có cột này
     const [grade, setGrade] = useState(profile?.grade_name || user?.user_metadata?.grade_name || ALL_GRADES[0]);
     const [province, setProvince] = useState(profile?.province || user?.user_metadata?.province || 'Tuyên Quang');
     const [ward, setWard] = useState(profile?.ward_commune || user?.user_metadata?.ward_commune || '');
     const [school, setSchool] = useState(profile?.school_name || user?.user_metadata?.school_name || '');
+
+    // Form states - AI Preference
+    const [aiPreference, setAiPreference] = useState<'gemini' | 'chatgpt'>('gemini');
+    const [customOpenAIKey, setCustomOpenAIKey] = useState('');
+    const [customGeminiKey, setCustomGeminiKey] = useState('');
+
+    useEffect(() => {
+        // Load preferences from localStorage
+        const pref = localStorage.getItem('ai_preference') as 'gemini' | 'chatgpt';
+        if (pref) setAiPreference(pref);
+        
+        const openAIKey = localStorage.getItem('openai_api_key');
+        if (openAIKey) setCustomOpenAIKey(openAIKey);
+
+        const geminiKey = localStorage.getItem('gemini_api_key');
+        if (geminiKey) setCustomGeminiKey(geminiKey);
+    }, []);
 
     const isTuyenQuang = province === 'Tuyên Quang';
     const wardList = useMemo(() => isTuyenQuang ? Object.keys(SCHOOLS_BY_WARD).sort() : [], [isTuyenQuang]);
@@ -46,6 +65,24 @@ const ProfileSettingsView: React.FC = () => {
         setMessage(null);
         
         try {
+            // 1. Lưu Cấu hình AI vào LocalStorage
+            localStorage.setItem('ai_preference', aiPreference);
+            
+            // Save OpenAI Key
+            if (customOpenAIKey.trim()) {
+                localStorage.setItem('openai_api_key', customOpenAIKey.trim());
+            } else {
+                localStorage.removeItem('openai_api_key');
+            }
+
+            // Save Gemini Key
+            if (customGeminiKey.trim()) {
+                localStorage.setItem('gemini_api_key', customGeminiKey.trim());
+            } else {
+                localStorage.removeItem('gemini_api_key');
+            }
+
+            // 2. Lưu thông tin Profile vào DB
             const updates = {
                 full_name: fullName,
                 date_of_birth: dob,
@@ -55,8 +92,6 @@ const ProfileSettingsView: React.FC = () => {
                 school_name: school
             };
 
-            // CHIẾN LƯỢC LƯU TRỮ THÔNG MINH (SMART SAVE STRATEGY)
-            // 1. Cố gắng lưu vào bảng 'profiles' (bao gồm cả grade_name)
             try {
                 const { error } = await supabase
                     .from('profiles')
@@ -65,38 +100,23 @@ const ProfileSettingsView: React.FC = () => {
 
                 if (error) throw error;
             } catch (dbError: any) {
-                // 2. NẾU LỖI DO THIẾU CỘT (Schema Mismatch)
-                // Lỗi thường gặp: "Could not find the 'grade_name' column of 'profiles'"
                 if (dbError.message?.includes("Could not find") || dbError.code === 'PGRST204' || dbError.code === '42703') {
-                    console.warn("Database schema mismatch detected. Switching to Metadata storage fallback.");
-                    
-                    // Bước 2a: Lưu các thông tin cơ bản (có cột sẵn) vào profiles
-                    const { error: retryError } = await supabase
-                        .from('profiles')
-                        .update(updates)
-                        .eq('id', user.id);
-                    
+                    console.warn("Database schema mismatch. Switching to Metadata storage fallback.");
+                    const { error: retryError } = await supabase.from('profiles').update(updates).eq('id', user.id);
                     if (retryError) throw retryError;
-
-                    // Bước 2b: Lưu 'grade_name' vào User Metadata (Phương án dự phòng an toàn)
-                    const { error: metaError } = await supabase.auth.updateUser({
-                        data: { grade_name: grade }
-                    });
-                    
+                    const { error: metaError } = await supabase.auth.updateUser({ data: { grade_name: grade } });
                     if (metaError) throw metaError;
                 } else {
-                    // Nếu là lỗi khác (mạng, quyền...), ném ra ngoài để hiển thị
                     throw dbError;
                 }
             }
             
-            // Cập nhật lại context
             await refreshProfile();
+            setMessage({ type: 'success', text: 'Cập nhật hồ sơ và cấu hình AI thành công!' });
             
-            setMessage({ type: 'success', text: 'Cập nhật hồ sơ thành công! Thông tin lớp học đã được đồng bộ.' });
+            // Tự động cuộn lên đầu để thấy thông báo
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             
-            // Tự động quay về trang chủ sau 1.5s
-            setTimeout(() => navigate('home'), 1500);
         } catch (err: any) {
             console.error(err);
             setMessage({ type: 'error', text: 'Lỗi: ' + err.message });
@@ -107,7 +127,7 @@ const ProfileSettingsView: React.FC = () => {
 
     return (
         <div className="container mx-auto max-w-3xl pb-20 animate-scale-in">
-            <Breadcrumb items={[{ label: 'Trang chủ', onClick: () => navigate('home') }, { label: 'Hồ sơ cá nhân' }]} />
+            <Breadcrumb items={[{ label: 'Trang chủ', onClick: () => navigate('home') }, { label: 'Hồ sơ & Cài đặt' }]} />
 
             <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
                 <div className="bg-gradient-to-r from-indigo-600 to-brand-primary p-8 text-white">
@@ -117,14 +137,102 @@ const ProfileSettingsView: React.FC = () => {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold">Thiết lập tài khoản</h1>
-                            <p className="text-indigo-100 text-sm opacity-80">Cập nhật thông tin để AI tối ưu lộ trình học tập cho bạn.</p>
+                            <p className="text-indigo-100 text-sm opacity-80">Cập nhật thông tin và tùy chỉnh trải nghiệm AI.</p>
                         </div>
                     </div>
                 </div>
 
-                <form onSubmit={handleSave} className="p-8 sm:p-10 space-y-8">
-                    {/* Thông tin học tập - QUAN TRỌNG NHẤT */}
-                    <div className="space-y-4">
+                <form onSubmit={handleSave} className="p-8 sm:p-10 space-y-10">
+                    
+                    {/* --- CẤU HÌNH AI --- */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="h-1 w-8 bg-purple-500 rounded-full"></div>
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Cấu hình Trí tuệ nhân tạo (AI)</label>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div 
+                                onClick={() => setAiPreference('gemini')}
+                                className={`relative p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiPreference === 'gemini' ? 'border-brand-primary bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                            >
+                                <div className="flex items-center gap-4 mb-3">
+                                    <div className={`p-3 rounded-2xl ${aiPreference === 'gemini' ? 'bg-brand-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <SparklesIcon className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className={`font-bold ${aiPreference === 'gemini' ? 'text-brand-primary' : 'text-slate-700'}`}>Google Gemini</h3>
+                                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Mặc định</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Tốc độ phản hồi nhanh, miễn phí và ổn định. Phù hợp cho các tác vụ tạo văn bản và phân tích cơ bản.
+                                </p>
+                                {aiPreference === 'gemini' && <div className="absolute top-4 right-4 text-brand-primary"><CheckCircleIcon className="h-6 w-6" /></div>}
+                            </div>
+
+                            <div 
+                                onClick={() => setAiPreference('chatgpt')}
+                                className={`relative p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiPreference === 'chatgpt' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                            >
+                                <div className="flex items-center gap-4 mb-3">
+                                    <div className={`p-3 rounded-2xl ${aiPreference === 'chatgpt' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <RobotIcon className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className={`font-bold ${aiPreference === 'chatgpt' ? 'text-emerald-700' : 'text-slate-700'}`}>OpenAI ChatGPT</h3>
+                                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Khuyên dùng</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Thông minh hơn, hỗ trợ <strong>Vision (Đọc ảnh)</strong> tốt hơn. Giảm thiểu lỗi "Quá tải" của Gemini.
+                                </p>
+                                {aiPreference === 'chatgpt' && <div className="absolute top-4 right-4 text-emerald-600"><CheckCircleIcon className="h-6 w-6" /></div>}
+                            </div>
+                        </div>
+
+                        {aiPreference === 'gemini' && (
+                            <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 animate-slide-up">
+                                <label className="block text-xs font-bold text-indigo-800 uppercase mb-2 flex items-center">
+                                    <KeyIcon className="h-4 w-4 mr-2" /> Google Gemini API Key (Tùy chọn)
+                                </label>
+                                <input 
+                                    type="password" 
+                                    placeholder="AIzaSy..." 
+                                    className="w-full p-4 rounded-xl border border-indigo-200 focus:ring-4 focus:ring-indigo-100 outline-none text-sm font-mono"
+                                    value={customGeminiKey}
+                                    onChange={e => setCustomGeminiKey(e.target.value)}
+                                />
+                                <p className="text-[10px] text-indigo-600 mt-2 italic">
+                                    * Sử dụng Key cá nhân của bạn sẽ giúp tốc độ ổn định hơn và tránh bị giới hạn Quota của hệ thống. 
+                                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline ml-1 font-bold">Lấy Key tại đây</a>.
+                                </p>
+                            </div>
+                        )}
+
+                        {aiPreference === 'chatgpt' && (
+                            <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 animate-slide-up">
+                                <label className="block text-xs font-bold text-emerald-800 uppercase mb-2 flex items-center">
+                                    <KeyIcon className="h-4 w-4 mr-2" /> OpenAI API Key (Tùy chọn)
+                                </label>
+                                <input 
+                                    type="password" 
+                                    placeholder="sk-proj-..." 
+                                    className="w-full p-4 rounded-xl border border-emerald-200 focus:ring-4 focus:ring-emerald-100 outline-none text-sm font-mono"
+                                    value={customOpenAIKey}
+                                    onChange={e => setCustomOpenAIKey(e.target.value)}
+                                />
+                                <p className="text-[10px] text-emerald-600 mt-2 italic">
+                                    * Nếu bạn có Key riêng, hãy nhập vào đây để sử dụng không giới hạn. Nếu để trống, hệ thống sẽ dùng Key mặc định (có thể bị giới hạn).
+                                </p>
+                            </div>
+                        )}
+                    </section>
+
+                    <div className="h-px bg-slate-100"></div>
+
+                    {/* --- THÔNG TIN HỌC TẬP --- */}
+                    <section className="space-y-4">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="h-1 w-8 bg-brand-primary rounded-full"></div>
                             <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Thông tin lớp học & Trường</label>
@@ -139,7 +247,6 @@ const ProfileSettingsView: React.FC = () => {
                                 >
                                     {ALL_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                                 </select>
-                                <p className="text-[10px] text-indigo-500 font-bold mt-2 ml-1 italic">* Đổi lớp để nhận đúng đề thi từ giáo viên.</p>
                             </div>
                             
                             <SearchableSelect 
@@ -169,12 +276,12 @@ const ProfileSettingsView: React.FC = () => {
                                 disabled={!ward}
                             />
                         </div>
-                    </div>
+                    </section>
 
                     <div className="h-px bg-slate-100"></div>
 
-                    {/* Thông tin cá nhân */}
-                    <div className="space-y-4">
+                    {/* --- THÔNG TIN CÁ NHÂN --- */}
+                    <section className="space-y-4">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="h-1 w-8 bg-brand-primary rounded-full"></div>
                             <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Thông tin cá nhân</label>
@@ -209,7 +316,7 @@ const ProfileSettingsView: React.FC = () => {
                                 </select>
                             </div>
                         </div>
-                    </div>
+                    </section>
 
                     {message && (
                         <div className={`p-4 rounded-2xl text-sm font-bold flex items-center gap-3 ${
@@ -236,7 +343,7 @@ const ProfileSettingsView: React.FC = () => {
                             {isLoading ? (
                                 <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Đang lưu...</>
                             ) : (
-                                <><CheckCircleIcon className="h-4 w-4" /> Lưu thay đổi</>
+                                <><CheckCircleIcon className="h-4 w-4" /> Lưu tất cả thay đổi</>
                             )}
                         </button>
                     </div>
