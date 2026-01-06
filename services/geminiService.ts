@@ -183,100 +183,69 @@ export const parseExamDocument = async (base64Data: string, mimeType: string, te
 };
 
 export const generateLessonPlan = async (subject: string, grade: string, topic: string, bookSeries: string, contextFiles: { data: string, mimeType: string }[], oldContentText?: string, appendixText?: string): Promise<LessonPlan> => {
+    // Prompt được viết lại để nhấn mạnh việc giữ nguyên nội dung gốc
     const prompt = `
-    Đóng vai là chuyên gia giáo dục, hãy soạn Kế hoạch bài dạy (Giáo án) môn ${subject} ${grade} bài "${topic}" (${bookSeries}) theo công văn 5512.
+    Bạn là một trợ lý hỗ trợ số hóa giáo án.
+    Nhiệm vụ của bạn: Chuyển đổi nội dung giáo án cũ được cung cấp sang định dạng JSON và BỔ SUNG phần tích hợp Năng lực số (NLS).
+
+    QUY TẮC BẤT KHẢ XÂM PHẠM (TUYỆT ĐỐI TUÂN THỦ):
+    1. GIỮ NGUYÊN VĂN (VERBATIM): 
+       - Nếu người dùng cung cấp nội dung giáo án cũ (trong file hoặc text), bạn PHẢI sao chép chính xác nội dung đó vào các mục I (Mục tiêu), II (Thiết bị), và III (Tiến trình dạy học).
+       - KHÔNG ĐƯỢC TÓM TẮT, KHÔNG ĐƯỢC VIẾT LẠI, KHÔNG ĐƯỢC CẮT BỚT.
+       - Ví dụ: Hoạt động của GV dài 10 dòng, bạn phải trả về đủ 10 dòng.
     
-    YÊU CẦU QUAN TRỌNG NHẤT:
-    Tích hợp Năng lực số dựa trên văn bản 3456/BGDĐT-GDPT. 
-    BẮT BUỘC SỬ DỤNG CHÍNH XÁC CÁC MÃ SAU (KHÔNG ĐƯỢC BỊA MÃ KHÁC):
-
-    1. Khai thác dữ liệu và thông tin:
-       - 1.1.TC1a/b/c/d (Duyệt, tìm kiếm dữ liệu)
-       - 1.2.TC1a/b (Đánh giá dữ liệu)
-       - 1.3.TC1a/b (Quản lý dữ liệu)
-    2. Giao tiếp và hợp tác:
-       - 2.1.TC1a/b (Tương tác qua công nghệ)
-       - 2.2.TC1a/b/c (Chia sẻ thông tin)
-       - 2.3.TC1a/b (Công dân số)
-       - 2.4.TC1a (Hợp tác qua công nghệ)
-       - 2.5.TC1a/b/c (Quy tắc ứng xử)
-       - 2.6.TC1a/b/c (Quản lý danh tính số)
-    3. Sáng tạo nội dung số:
-       - 3.1.TC1a/b (Phát triển nội dung)
-       - 3.2.TC1a (Tích hợp và tái tạo)
-       - 3.3.TC1a (Bản quyền)
-       - 3.4.TC1a (Lập trình/Tư duy máy tính)
-    4. An toàn:
-       - 4.1.TC1a/b/c/d (Bảo vệ thiết bị)
-       - 4.2.TC1a/b/c (Bảo vệ dữ liệu cá nhân)
-       - 4.3.TC1a/b/c (Sức khỏe và an sinh)
-       - 4.4.TC1a (Bảo vệ môi trường)
-    5. Giải quyết vấn đề:
-       - 5.1.TC1a/b (Vấn đề kỹ thuật)
-       - 5.2.TC1a/b/c (Nhu cầu công nghệ)
-       - 5.3.TC1a/b (Sáng tạo công nghệ)
-       - 5.4.TC1a/b (Cải thiện năng lực)
-    6. Sử dụng trí tuệ nhân tạo (AI):
-       - 6.1.TC1a/b (Hiểu biết về AI)
-       - 6.2.TC1a/b/c (Sử dụng AI)
-       - 6.3.TC1a/b (Đánh giá AI)
-
-    HÃY CHỌN 2-3 HOẠT ĐỘNG TRONG BÀI CÓ THỂ ỨNG DỤNG CÔNG NGHỆ VÀ GÁN MÃ NĂNG LỰC SỐ TƯƠNG ỨNG TỪ DANH SÁCH TRÊN.
+    2. CHỈ BỔ SUNG NĂNG LỰC SỐ:
+       - Dựa trên các hoạt động có sẵn trong giáo án cũ, hãy xác định hoạt động nào có sử dụng hoặc CÓ THỂ sử dụng công nghệ (ví dụ: tìm kiếm internet, dùng phần mềm, trình chiếu...).
+       - Nếu hoạt động đó dùng công nghệ, hãy gán mã NLS phù hợp từ danh sách sau vào phần "nlsAnalysisTable".
+    
+    DANH SÁCH MÃ NĂNG LỰC SỐ (Theo văn bản 3456):
+    - 1.1.TC1a/b/c/d (Duyệt, tìm kiếm dữ liệu)
+    - 2.1.TC1a/b (Giao tiếp qua công nghệ)
+    - 3.1.TC1a/b (Tạo sản phẩm số)
+    - 4.1.TC1a (An toàn mạng)
+    - 5.1.TC1a (Giải quyết vấn đề kỹ thuật)
 
     CẤU TRÚC JSON TRẢ VỀ (BẮT BUỘC):
     {
-      "period": "Số tiết",
+      "period": "Số tiết (lấy từ giáo án cũ)",
       "topic": "${topic}",
       "grade": "${grade}",
       "objectives": {
-        "knowledge": ["Yêu cầu kiến thức 1", "..."],
-        "commonCompetencies": ["Tự chủ và tự học", "Giao tiếp và hợp tác", "Giải quyết vấn đề và sáng tạo"],
+        "knowledge": ["Sao chép nguyên văn từ mục Kiến thức của giáo án cũ"],
+        "commonCompetencies": ["Sao chép nguyên văn từ mục Năng lực chung"],
         "digitalCompetencies": [
-           { "domain": "Miền 1. Khai thác dữ liệu", "code": "1.1.TC1a", "description": "Học sinh tìm kiếm được thông tin..." }
+           { "domain": "Miền 1. Khai thác dữ liệu", "code": "1.1.TC1a", "description": "Mô tả năng lực số bổ sung" }
         ],
-        "virtues": ["Chăm chỉ", "Trung thực", "Trách nhiệm"]
+        "virtues": ["Sao chép nguyên văn từ mục Phẩm chất"]
       },
       "materials": {
-        "teacher": ["Máy tính", "Tivi", "Phần mềm..."],
-        "student": ["SGK", "Vở ghi"]
+        "teacher": ["Sao chép nguyên văn Thiết bị GV"],
+        "student": ["Sao chép nguyên văn Thiết bị HS"]
       },
       "activities": [
         {
           "id": 1,
-          "title": "Hoạt động 1: Khởi động",
-          "goal": "...",
-          "content": "...",
-          "product": "...",
+          "title": "Tên hoạt động (Giữ nguyên văn)",
+          "goal": "Mục tiêu hoạt động (Giữ nguyên văn)",
+          "content": "Nội dung hoạt động (Giữ nguyên văn)",
+          "product": "Sản phẩm (Giữ nguyên văn)",
           "execution": {
-            "step1": "GV chuyển giao...",
-            "step2": "HS thực hiện...",
-            "step3": "Báo cáo...",
-            "step4": "Kết luận..."
-          }
-        },
-        {
-          "id": 2,
-          "title": "Hoạt động 2: Hình thành kiến thức",
-          "goal": "...",
-          "content": "...",
-          "product": "...",
-          "execution": {
-            "step1": "GV yêu cầu HS dùng Google để tìm kiếm...",
-            "step2": "HS thực hiện...",
-            "step3": "...",
-            "step4": "..."
+            "step1": "Chuyển giao nhiệm vụ (SAO CHÉP NGUYÊN VĂN TỪ GIÁO ÁN CŨ)",
+            "step2": "Thực hiện nhiệm vụ (SAO CHÉP NGUYÊN VĂN TỪ GIÁO ÁN CŨ)",
+            "step3": "Báo cáo, thảo luận (SAO CHÉP NGUYÊN VĂN TỪ GIÁO ÁN CŨ)",
+            "step4": "Kết luận, nhận định (SAO CHÉP NGUYÊN VĂN TỪ GIÁO ÁN CŨ)"
           }
         }
       ],
       "nlsAnalysisTable": [
         {
           "index": 1,
-          "activityName": "Hoạt động 2: Hình thành kiến thức",
-          "organization": "GV yêu cầu HS tìm kiếm thông tin trên Internet...",
-          "competencyDetail": "1.1.TC1a: Xác định nhu cầu thông tin và tìm kiếm dữ liệu."
+          "activityName": "Tên hoạt động tương ứng",
+          "organization": "Mô tả ngắn gọn cách tổ chức có dùng công nghệ",
+          "competencyDetail": "Mã NLS: Tên năng lực"
         }
       ],
-      "homework": "..."
+      "homework": "Dặn dò (Giữ nguyên văn)"
     }
     `;
 
@@ -284,8 +253,8 @@ export const generateLessonPlan = async (subject: string, grade: string, topic: 
     try {
         const ai = getAiClient();
         const parts: any[] = [{ text: prompt }];
-        if (oldContentText) parts.push({ text: `Tài liệu tham khảo (Giáo án cũ/Nội dung bài): ${oldContentText}` });
-        if (appendixText) parts.push({ text: `Phụ lục 3 (Yêu cầu cần đạt/Đặc tả): ${appendixText}` });
+        if (oldContentText) parts.push({ text: `[NỘI DUNG GIÁO ÁN CŨ - HÃY GIỮ NGUYÊN VĂN]:\n${oldContentText}` });
+        if (appendixText) parts.push({ text: `[TÀI LIỆU PHỤ LỤC 3 - THAM KHẢO]:\n${appendixText}` });
         contextFiles.forEach(f => parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
         
         const response = await ai.models.generateContent({ 
@@ -298,9 +267,9 @@ export const generateLessonPlan = async (subject: string, grade: string, topic: 
         // 2. Nếu Gemini lỗi (429/Network), chuyển sang ChatGPT
         console.warn("⚠️ Gemini LessonPlan Error -> Switching to ChatGPT...", geminiError);
         
-        // Tạo nội dung text tổng hợp để gửi ChatGPT (vì hàm ChatGPT hiện tại chưa hỗ trợ gửi file ảnh trực tiếp qua API wrapper này)
+        // Tạo nội dung text tổng hợp để gửi ChatGPT
         let fullPrompt = prompt;
-        if (oldContentText) fullPrompt += `\n\n[TÀI LIỆU THAM KHẢO]:\n${oldContentText}`;
+        if (oldContentText) fullPrompt += `\n\n[NỘI DUNG GIÁO ÁN CŨ - CẦN GIỮ NGUYÊN VĂN]:\n${oldContentText}`;
         if (appendixText) fullPrompt += `\n\n[PHỤ LỤC 3]:\n${appendixText}`;
         
         try {
