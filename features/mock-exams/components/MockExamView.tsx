@@ -86,8 +86,15 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
         
         if (user) {
             try {
-                // Lấy tên học sinh để lưu đệm vào metadata (giải quyết lỗi không hiện tên ở phía GV)
-                const studentName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Học sinh';
+                // LẤY TÊN HỌC SINH TỪ NHIỀU NGUỒN ĐỂ ĐẢM BẢO KHÔNG BỊ NULL
+                // 1. Auth Metadata (đáng tin cậy nhất vì đi theo session)
+                // 2. Profile Context (nếu đã load)
+                // 3. Email (fallback cuối cùng)
+                const studentName = 
+                    user.user_metadata?.full_name || 
+                    profile?.full_name || 
+                    user.email?.split('@')[0] || 
+                    'Học sinh';
 
                 const basePayload = {
                     user_id: user.id,
@@ -97,7 +104,7 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                     total_questions: total,
                     exam_type: 'mock',
                     metadata: { 
-                        student_name: studentName, // LƯU TÊN TRỰC TIẾP
+                        student_name: studentName, // LƯU CỨNG TÊN VÀO ĐÂY
                         student_email: user.email,
                         violations: violations + (cheatDetected ? 1 : 0),
                         is_cheating: cheatDetected || violations >= 1,

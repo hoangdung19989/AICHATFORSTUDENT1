@@ -81,16 +81,17 @@ const ExamResultsViewer: React.FC = () => {
                 // Ưu tiên 1: Tên trong metadata (vì metadata lưu trực tiếp lúc nộp bài, không bị chặn bởi RLS)
                 // Ưu tiên 2: Tên từ join profile (nếu DB cho phép xem)
                 // Ưu tiên 3: Email từ metadata
+                // Ưu tiên 4: Email từ Profile
                 const metaName = r.metadata?.student_name;
                 const metaEmail = r.metadata?.student_email;
                 const dbProfile = profileMap.get(r.user_id);
                 
                 return {
                     ...r,
-                    display_name: metaName || dbProfile?.full_name || metaEmail?.split('@')[0] || 'Học sinh ẩn danh',
+                    display_name: metaName || dbProfile?.full_name || metaEmail?.split('@')[0] || dbProfile?.email?.split('@')[0] || 'Học sinh ẩn danh',
                     display_email: metaEmail || dbProfile?.email || '---',
-                    display_school: dbProfile?.school_name || 'Chưa cập nhật',
-                    display_grade: dbProfile?.grade_name || r.grade_name
+                    display_school: dbProfile?.school_name || r.metadata?.school_name || 'Chưa cập nhật',
+                    display_grade: dbProfile?.grade_name || r.grade_name || r.metadata?.grade_name
                 };
             });
 
@@ -101,7 +102,7 @@ const ExamResultsViewer: React.FC = () => {
                 ...r,
                 display_name: r.metadata?.student_name || r.metadata?.student_email?.split('@')[0] || 'Học sinh ẩn danh',
                 display_email: r.metadata?.student_email || '---',
-                display_school: 'Xem trong metadata',
+                display_school: r.metadata?.school_name || 'Xem trong metadata',
                 display_grade: r.grade_name
             })));
         }
@@ -162,7 +163,7 @@ const ExamResultsViewer: React.FC = () => {
                                         <tr key={res.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
-                                                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm mr-3">
+                                                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm mr-3 uppercase">
                                                         {res.display_name.charAt(0)}
                                                     </div>
                                                     <div>

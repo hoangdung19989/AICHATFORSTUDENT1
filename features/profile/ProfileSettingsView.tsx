@@ -93,18 +93,30 @@ const ProfileSettingsView: React.FC = () => {
             };
 
             try {
+                // Update DB Profile
                 const { error } = await supabase
                     .from('profiles')
                     .update({ ...updates, grade_name: grade })
                     .eq('id', user.id);
 
                 if (error) throw error;
+
+                // QUAN TRỌNG: Đồng bộ Metadata để đảm bảo tên học sinh luôn hiển thị đúng
+                // kể cả khi DB bị chặn bởi RLS
+                await supabase.auth.updateUser({ 
+                    data: { 
+                        full_name: fullName,
+                        grade_name: grade,
+                        school_name: school
+                    } 
+                });
+
             } catch (dbError: any) {
                 if (dbError.message?.includes("Could not find") || dbError.code === 'PGRST204' || dbError.code === '42703') {
                     console.warn("Database schema mismatch. Switching to Metadata storage fallback.");
                     const { error: retryError } = await supabase.from('profiles').update(updates).eq('id', user.id);
                     if (retryError) throw retryError;
-                    const { error: metaError } = await supabase.auth.updateUser({ data: { grade_name: grade } });
+                    const { error: metaError } = await supabase.auth.updateUser({ data: { grade_name: grade, full_name: fullName } });
                     if (metaError) throw metaError;
                 } else {
                     throw dbError;
