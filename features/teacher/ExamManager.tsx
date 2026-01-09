@@ -39,17 +39,12 @@ const ExamManager: React.FC = () => {
     const [subject, setSubject] = useState(ALL_SUBJECTS[0]);
     const [grade, setGrade] = useState(ALL_GRADES[0]);
     
-    // Default deadline: 7 days from now, handled carefully to avoid timezone issues
     const getDefaultDeadline = () => {
-        const date = new Date();
-        date.setDate(date.getDate() + 7);
-        // Format to YYYY-MM-DDTHH:MM local time for input
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
+        const d = new Date();
+        d.setDate(d.getDate() + 7);
+        // Chuyển đổi sang format yyyy-MM-ddThh:mm để input type="datetime-local" hiểu
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
     };
 
     const [deadline, setDeadline] = useState(getDefaultDeadline());
@@ -85,10 +80,7 @@ const ExamManager: React.FC = () => {
             if (error) throw error;
             setMyExams(data || []);
         } catch (err: any) {
-            console.error("Lỗi tải đề:", err);
-            // Fallback nếu lỗi relation
-            const { data: simpleData } = await supabase.from('teacher_exams').select('*').eq('teacher_id', user.id);
-            setMyExams(simpleData || []);
+            console.error("Lỗi tải danh sách:", err);
         } finally {
             setIsLoading(false);
         }
@@ -107,8 +99,7 @@ const ExamManager: React.FC = () => {
                 const conv = await mammoth.extractRawText({ arrayBuffer });
                 setUploadedFile({ file, text: conv.value });
             } catch (e) { 
-                console.error(e);
-                alert("Không thể đọc file Word. Hãy thử chuyển sang PDF."); 
+                alert("Lỗi đọc file Word. Hãy thử file khác."); 
                 setUploadedFile(null);
             } finally {
                 setIsLoading(false);
@@ -124,8 +115,8 @@ const ExamManager: React.FC = () => {
     };
 
     const handleParse = async () => {
-        if (!uploadedFile) { alert("Vui lòng chọn file đề thi."); return; }
-        if (!title.trim()) { alert("Vui lòng nhập tên đợt thi."); return; }
+        if (!uploadedFile) { alert("Vui lòng chọn file."); return; }
+        if (!title.trim()) { alert("Vui lòng nhập tên bài thi."); return; }
         
         setIsLoading(true);
         try {
@@ -133,25 +124,20 @@ const ExamManager: React.FC = () => {
             const parsedQuiz = await parseExamDocument(base64, uploadedFile.file.type, uploadedFile.text);
             
             if (!parsedQuiz.questions || parsedQuiz.questions.length === 0) {
-                if (window.confirm("AI không tìm thấy câu hỏi trắc nghiệm. Bạn có muốn nhập tay không?")) {
-                    setQuestions([{
-                        question: "Câu hỏi mẫu...",
-                        options: ["A", "B", "C", "D"],
-                        correctAnswer: "A",
-                        explanation: ""
-                    }]);
-                    setStep(2);
-                    return;
-                } else {
-                    throw new Error("Không tìm thấy dữ liệu.");
-                }
+                // Fallback nếu AI trả về rỗng
+                setQuestions([{
+                    question: "Câu hỏi mẫu (AI chưa đọc được file)",
+                    options: ["A", "B", "C", "D"],
+                    correctAnswer: "A",
+                    explanation: "Vui lòng nhập thủ công."
+                }]);
+            } else {
+                setQuestions(parsedQuiz.questions);
             }
-            
-            setQuestions(parsedQuiz.questions);
             setEssayQuestions(parsedQuiz.essayQuestions || []);
             setStep(2);
         } catch (error: any) { 
-            alert("LỖI: " + error.message); 
+            alert("Lỗi AI: " + error.message); 
         } finally { 
             setIsLoading(false); 
         }
@@ -177,73 +163,64 @@ const ExamManager: React.FC = () => {
     };
 
     const handleSaveExam = async () => {
-        if (!user) return;
-        
-        // Validation cơ bản
-        if (questions.length === 0) {
-            alert("Đề thi chưa có câu hỏi nào!");
-            return;
-        }
+        if (!user) { alert("Vui lòng đăng nhập lại."); return; }
+        if (questions.length === 0) { alert("Đề thi trống!"); return; }
 
         setIsLoading(true);
         try {
-            // Logic quan trọng: Luôn đảm bảo có variants để Student View dễ xử lý
+            // 1. Chuẩn bị variants (Nếu chưa tạo thì lấy Gốc)
             let finalVariants = generatedVariants;
-            
-            // Nếu người dùng không trộn đề (hoặc generatedVariants rỗng), 
-            // tạo một variant mặc định là "GỐC"
             if (finalVariants.length === 0) {
-                finalVariants = [{ 
-                    code: 'GỐC', 
-                    questions: [...questions] // Copy mảng để tránh tham chiếu
-                }];
+                finalVariants = [{ code: 'GỐC', questions: [...questions] }];
             }
-            
-            // Cấu trúc JSON chuẩn để lưu vào cột 'questions' trong Supabase
-            const examDataPayload = {
+
+            // 2. Tẩy sạch dữ liệu (Deep Clone & Remove undefined)
+            // Đây là bước quan trọng nhất để tránh Supabase bị treo do lỗi định dạng JSON
+            const cleanQuestions = JSON.parse(JSON.stringify(questions));
+            const cleanEssay = JSON.parse(JSON.stringify(essayQuestions));
+            const cleanVariants = JSON.parse(JSON.stringify(finalVariants));
+
+            const examPayload = {
                 source: 'uploaded',
-                original_questions: questions, 
-                essay_questions: essayQuestions,
-                variants: finalVariants,
-                has_variants: finalVariants.length > 1,
-                external_link: externalLink
+                questions: cleanQuestions,
+                essayQuestions: cleanEssay,
+                variants: cleanVariants,
+                isShuffled: cleanVariants.length > 1,
+                externalLink: externalLink || ""
             };
-            
+
             const isoDeadline = new Date(deadline).toISOString();
 
+            // 3. Gửi lên Supabase
             const { error } = await supabase.from('teacher_exams').insert({
                 teacher_id: user.id,
                 title: title.trim(),
                 subject: subject,
                 grade: grade,
                 deadline: isoDeadline,
-                questions: examDataPayload, // Lưu toàn bộ cục JSON vào đây
+                questions: examPayload, // Cột jsonb
                 status: 'published'
             });
 
             if (error) throw error;
+
+            alert("✅ GIAO BÀI THÀNH CÔNG!");
             
-            alert("✅ ĐÃ GIAO ĐỀ THÀNH CÔNG!\nHọc sinh trong khối lớp đã có thể nhìn thấy bài thi này.");
-            
-            // Reset toàn bộ state về ban đầu
-            setViewMode('list'); 
-            setStep(1); 
-            setTitle(''); 
-            setDeadline(getDefaultDeadline()); 
-            setExternalLink('');
-            setQuestions([]); 
-            setEssayQuestions([]); 
-            setUploadedFile(null); 
+            // 4. Reset trạng thái
+            setStep(1);
+            setViewMode('list');
+            setTitle('');
+            setQuestions([]);
+            setEssayQuestions([]);
             setGeneratedVariants([]);
-            
-            // Refresh danh sách
+            setUploadedFile(null);
             fetchMyExams();
 
         } catch (err: any) {
-            alert(`LỖI LƯU TRỮ: ${err.message}`);
-            console.error("Database save error:", err);
-        } finally { 
-            setIsLoading(false); 
+            console.error("Save Error:", err);
+            alert(`LỖI: ${err.message || "Không thể lưu đề thi."}`);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -265,7 +242,7 @@ const ExamManager: React.FC = () => {
         setQuestions(newQs);
     };
 
-    if (isLoading) return <LoadingSpinner text="Đang xử lý..." subText="Vui lòng đợi trong giây lát..." />;
+    if (isLoading) return <LoadingSpinner text="Đang xử lý dữ liệu..." subText="Vui lòng đợi, không tắt trình duyệt." />;
 
     return (
         <div className="container mx-auto max-w-5xl pb-20 animate-scale-in">
@@ -276,7 +253,7 @@ const ExamManager: React.FC = () => {
                     <div className="flex justify-between items-center mb-8">
                         <div>
                             <h1 className="text-3xl font-extrabold text-slate-800">Quản lý Đề thi</h1>
-                            <p className="text-slate-500 text-sm mt-1">Giao bài và theo dõi tiến độ nộp bài của học sinh.</p>
+                            <p className="text-slate-500 text-sm mt-1">Danh sách các bài tập đã giao.</p>
                         </div>
                         <button onClick={() => setViewMode('create')} className="bg-brand-primary text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-brand-primary-dark transition-all flex items-center">
                             <PlusIcon className="h-5 w-5 mr-2" /> Giao đề mới
@@ -286,44 +263,29 @@ const ExamManager: React.FC = () => {
                     <div className="grid gap-4">
                         {myExams.length === 0 ? (
                             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
-                                Chưa có đề thi nào. Hãy nhấn "Giao đề mới" để bắt đầu.
+                                Chưa có đề thi nào.
                             </div>
                         ) : (
                             myExams.map(exam => {
-                                const deadlineDate = exam.deadline ? new Date(exam.deadline) : null;
-                                const isExpired = deadlineDate && deadlineDate < new Date();
                                 const submissionCount = exam.exam_results?.[0]?.count || 0;
-                                
                                 return (
-                                    <div key={exam.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-start md:items-center">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="text-lg font-bold text-slate-800">{exam.title}</h3>
-                                                <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">{exam.subject}</span>
-                                            </div>
-                                            <div className="flex items-center text-sm text-slate-400 gap-3">
-                                                <span>{exam.grade}</span>
-                                                <span>•</span>
-                                                <span className={`flex items-center ${isExpired ? 'text-red-500' : 'text-green-600'}`}>
-                                                    <ClockIcon className="h-4 w-4 mr-1" />
-                                                    Hạn: {deadlineDate ? deadlineDate.toLocaleDateString('vi-VN') : 'N/A'}
-                                                </span>
+                                    <div key={exam.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-slate-800">{exam.title}</h3>
+                                            <div className="flex gap-2 text-xs text-slate-500 mt-1">
+                                                <span className="bg-slate-100 px-2 py-0.5 rounded">{exam.subject}</span>
+                                                <span className="bg-slate-100 px-2 py-0.5 rounded">{exam.grade}</span>
                                             </div>
                                         </div>
-                                        <div className="mt-4 md:mt-0 flex items-center gap-6">
-                                            <div className="text-right">
-                                                <span className="block text-2xl font-black text-slate-800 leading-none">{submissionCount}</span>
-                                                <span className="text-[10px] text-slate-400 uppercase font-black">Bài nộp</span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })}
-                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-bold text-xs shadow-sm hover:shadow"
-                                                >
-                                                    Xem chi tiết
-                                                </button>
-                                                <button className="p-2 text-slate-400 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
-                                            </div>
+                                        <div className="text-right">
+                                            <span className="block text-2xl font-black text-slate-800">{submissionCount}</span>
+                                            <span className="text-[10px] text-slate-400 uppercase">Bài nộp</span>
+                                            <button 
+                                                onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })}
+                                                className="block mt-2 text-indigo-600 text-xs font-bold hover:underline"
+                                            >
+                                                Xem chi tiết
+                                            </button>
                                         </div>
                                     </div>
                                 );
@@ -335,162 +297,102 @@ const ExamManager: React.FC = () => {
 
             {viewMode === 'create' && (
                 <div className="max-w-4xl mx-auto">
-                    {/* Stepper UI */}
-                    <div className="flex items-center justify-center mb-10">
-                        <div className="flex items-center space-x-4">
-                            {[1, 2, 3].map((s) => (
-                                <React.Fragment key={s}>
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${step >= s ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'border-slate-200 text-slate-300'}`}>
-                                        {s}
-                                    </div>
-                                    {s < 3 && <div className={`w-12 h-0.5 ${step > s ? 'bg-brand-primary' : 'bg-slate-200'}`}></div>}
-                                </React.Fragment>
-                            ))}
-                        </div>
+                    {/* Stepper */}
+                    <div className="flex items-center justify-center mb-8 gap-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 1 ? 'bg-brand-primary text-white' : 'bg-slate-200'}`}>1</div>
+                        <div className="w-10 h-1 bg-slate-200"></div>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 2 ? 'bg-brand-primary text-white' : 'bg-slate-200'}`}>2</div>
+                        <div className="w-10 h-1 bg-slate-200"></div>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 3 ? 'bg-brand-primary text-white' : 'bg-slate-200'}`}>3</div>
                     </div>
 
                     {step === 1 && (
-                        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-                             <h2 className="text-2xl font-bold text-slate-800 mb-8 flex items-center">
-                                <ShieldCheckIcon className="h-6 w-6 mr-2 text-brand-primary" /> Thông tin đợt thi mới
-                            </h2>
-                            <div className="space-y-6">
+                        <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
+                            <h2 className="text-2xl font-bold">Bước 1: Thông tin đề thi</h2>
+                            <input type="text" className="w-full p-4 border rounded-xl font-bold" placeholder="Tên bài thi (VD: Kiểm tra 15p)" value={title} onChange={e => setTitle(e.target.value)} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <select className="p-3 border rounded-xl" value={subject} onChange={e => setSubject(e.target.value)}>{ALL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                <select className="p-3 border rounded-xl" value={grade} onChange={e => setGrade(e.target.value)}>{ALL_GRADES.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Tên đợt thi</label>
-                                    <input type="text" className="w-full p-4 border-2 rounded-2xl bg-slate-50 focus:bg-white focus:border-brand-primary outline-none transition-all font-bold" placeholder="VD: Kiểm tra 15 phút..." value={title} onChange={e => setTitle(e.target.value)} />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Môn học</label>
-                                        <select className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" value={subject} onChange={e => setSubject(e.target.value)}>
-                                            {ALL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Khối lớp</label>
-                                        <select className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" value={grade} onChange={e => setGrade(e.target.value)}>
-                                            {ALL_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Hạn nộp bài</label>
-                                        <input type="datetime-local" className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" value={deadline} onChange={e => setDeadline(e.target.value)} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Link đề gốc (Drive/PDF)</label>
-                                        <input type="url" className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" placeholder="https://..." value={externalLink} onChange={e => setExternalLink(e.target.value)} />
-                                    </div>
+                                    <label className="block text-xs font-bold mb-1">Hạn nộp</label>
+                                    <input type="datetime-local" className="w-full p-3 border rounded-xl" value={deadline} onChange={e => setDeadline(e.target.value)} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Tải file đề (AI tự nhập)</label>
-                                    <div className="relative border-4 border-dashed border-slate-100 rounded-3xl p-10 text-center hover:bg-indigo-50 transition-colors cursor-pointer">
-                                        <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx,.png,.jpg,.jpeg" onChange={handleFileChange} />
-                                        {uploadedFile ? (
-                                            <div className="text-green-600 font-bold flex flex-col items-center">
-                                                <CheckCircleIcon className="h-12 w-12 mb-2" /> {uploadedFile.file.name}
-                                            </div>
-                                        ) : (
-                                            <div className="text-slate-400">
-                                                <CloudArrowUpIcon className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                                                <p className="font-bold">Nhấn hoặc kéo thả file đề thi vào đây</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <label className="block text-xs font-bold mb-1">Link đề gốc (nếu có)</label>
+                                    <input type="text" className="w-full p-3 border rounded-xl" placeholder="Link Drive..." value={externalLink} onChange={e => setExternalLink(e.target.value)} />
                                 </div>
-                                <div className="flex gap-4 pt-4">
-                                    <button onClick={() => setViewMode('list')} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 uppercase tracking-widest text-xs">Hủy bỏ</button>
-                                    <button onClick={handleParse} className="flex-[2] py-4 bg-brand-primary text-white font-black rounded-2xl shadow-xl hover:shadow-indigo-200 uppercase tracking-widest text-xs">TIẾP TỤC</button>
-                                </div>
+                            </div>
+                            
+                            <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:bg-slate-50 relative">
+                                <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileChange} accept=".pdf,.docx,.jpg,.png" />
+                                {uploadedFile ? <p className="text-green-600 font-bold">{uploadedFile.file.name}</p> : <p className="text-slate-500">Nhấn để tải file đề (Word/PDF/Ảnh)</p>}
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button onClick={() => setViewMode('list')} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">Hủy</button>
+                                <button onClick={handleParse} className="flex-[2] py-3 bg-brand-primary text-white rounded-xl font-bold">Tiếp tục: Trích xuất câu hỏi</button>
                             </div>
                         </div>
                     )}
 
                     {step === 2 && (
-                        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                             <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-slate-800">Duyệt câu hỏi ({questions.length} câu)</h2>
-                                <button onClick={() => setStep(3)} className="bg-brand-primary text-white px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">Trộn đề & Giao bài <ArrowRightIcon className="h-4 w-4" /></button>
-                             </div>
-                             <div className="p-8 space-y-8 h-[60vh] overflow-y-auto custom-scrollbar">
-                                {questions.map((q, qIdx) => (
-                                    <div key={qIdx} className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 relative group">
-                                        <button onClick={() => setQuestions(questions.filter((_, i) => i !== qIdx))} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
-                                        <div className="flex gap-4">
-                                            <span className="w-8 h-8 bg-brand-primary text-white rounded-full flex items-center justify-center font-black text-xs shrink-0">{qIdx + 1}</span>
-                                            <div className="flex-1">
-                                                <textarea className="w-full bg-transparent font-bold text-slate-800 outline-none resize-none border-b border-transparent focus:border-indigo-200 mb-4" rows={2} value={q.question} onChange={e => updateQuestion(qIdx, 'question', e.target.value)} />
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    {q.options.map((opt, oIdx) => (
-                                                        <div key={oIdx} onClick={() => setCorrectAnswer(qIdx, opt)} className={`flex items-center p-3 rounded-xl border-2 transition-all cursor-pointer ${q.correctAnswer === opt ? 'bg-green-50 border-green-500' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
-                                                            <div className={`w-4 h-4 rounded-full border-2 mr-3 ${q.correctAnswer === opt ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}></div>
-                                                            <input className="bg-transparent outline-none flex-1 text-sm font-medium" value={opt} onChange={e => updateOption(qIdx, oIdx, e.target.value)} onClick={e => e.stopPropagation()} />
-                                                        </div>
-                                                    ))}
+                        <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 h-[80vh] flex flex-col">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold">Bước 2: Duyệt câu hỏi ({questions.length} câu)</h2>
+                                <button onClick={() => setStep(3)} className="bg-brand-primary text-white px-4 py-2 rounded-lg font-bold">Tiếp tục</button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar">
+                                {questions.map((q, idx) => (
+                                    <div key={idx} className="border p-4 rounded-xl relative group">
+                                        <button onClick={() => setQuestions(questions.filter((_, i) => i !== idx))} className="absolute top-2 right-2 text-red-400 hover:text-red-600 font-bold text-xs">Xóa</button>
+                                        <p className="font-bold mb-2">Câu {idx + 1}</p>
+                                        <textarea className="w-full p-2 border rounded-lg mb-2 font-medium" rows={2} value={q.question} onChange={e => updateQuestion(idx, 'question', e.target.value)} />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {q.options.map((opt, oIdx) => (
+                                                <div key={oIdx} onClick={() => setCorrectAnswer(idx, opt)} className={`p-2 border rounded cursor-pointer ${q.correctAnswer === opt ? 'bg-green-100 border-green-500' : ''}`}>
+                                                    <input className="bg-transparent w-full outline-none" value={opt} onChange={e => updateOption(idx, oIdx, e.target.value)} />
                                                 </div>
-                                            </div>
+                                            ))}
                                         </div>
                                     </div>
                                 ))}
-                             </div>
+                            </div>
                         </div>
                     )}
 
                     {step === 3 && (
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100">
-                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center"><ArrowPathIcon className="h-5 w-5 mr-2 text-indigo-500" /> Cấu hình trộn đề</h3>
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Số mã đề (1-8)</label>
-                                            <input type="number" min="1" max="8" className="w-full p-3 border-2 rounded-xl font-black text-center text-xl" value={shuffleConfig.count} onChange={e => setShuffleConfig({...shuffleConfig, count: parseInt(e.target.value)})}/>
-                                        </div>
-                                        <div className="space-y-3">
-                                            <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer">
-                                                <input type="checkbox" className="w-5 h-5 accent-brand-primary" checked={shuffleConfig.mixQuestions} onChange={e => setShuffleConfig({...shuffleConfig, mixQuestions: e.target.checked})}/>
-                                                <span className="font-bold text-sm text-slate-700">Đảo câu hỏi</span>
-                                            </label>
-                                            <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer">
-                                                <input type="checkbox" className="w-5 h-5 accent-brand-primary" checked={shuffleConfig.mixOptions} onChange={e => setShuffleConfig({...shuffleConfig, mixOptions: e.target.checked})}/>
-                                                <span className="font-bold text-sm text-slate-700">Đảo đáp án</span>
-                                            </label>
-                                        </div>
-                                        <button onClick={handleGenerateVariants} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all uppercase tracking-widest text-xs">Áp dụng trộn đề</button>
+                        <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
+                            <h2 className="text-2xl font-bold mb-6">Bước 3: Trộn đề & Xuất bản</h2>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="font-bold">Số lượng mã đề</label>
+                                    <input type="number" min="1" max="8" className="w-full p-3 border-2 rounded-xl mt-2 font-bold text-center text-xl" value={shuffleConfig.count} onChange={e => setShuffleConfig({...shuffleConfig, count: parseInt(e.target.value) || 1})} />
+                                </div>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-3 rounded-lg flex-1">
+                                        <input type="checkbox" className="w-5 h-5" checked={shuffleConfig.mixQuestions} onChange={e => setShuffleConfig({...shuffleConfig, mixQuestions: e.target.checked})} />
+                                        <span className="font-bold text-sm">Đảo câu hỏi</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-3 rounded-lg flex-1">
+                                        <input type="checkbox" className="w-5 h-5" checked={shuffleConfig.mixOptions} onChange={e => setShuffleConfig({...shuffleConfig, mixOptions: e.target.checked})} />
+                                        <span className="font-bold text-sm">Đảo đáp án</span>
+                                    </label>
+                                </div>
+                                
+                                <button onClick={handleGenerateVariants} className="w-full py-3 bg-slate-700 text-white rounded-xl font-bold">Tạo thử mã đề</button>
+
+                                {generatedVariants.length > 0 && (
+                                    <div className="p-4 bg-slate-50 rounded-xl">
+                                        <p className="font-bold text-green-600">Đã tạo {generatedVariants.length} mã đề: {generatedVariants.map(v => v.code).join(', ')}</p>
                                     </div>
-                                </div>
-                                <button onClick={handleSaveExam} className="w-full py-5 bg-green-600 text-white rounded-[1.5rem] font-black shadow-xl hover:shadow-green-100 hover:-translate-y-1 transition-all uppercase tracking-widest">HOÀN TẤT & ĐẨY BÀI</button>
-                            </div>
-                            <div className="lg:col-span-2 bg-white rounded-[2rem] shadow-xl border border-slate-100 flex flex-col h-[70vh]">
-                                <div className="p-4 bg-slate-50 border-b flex gap-2 overflow-x-auto scrollbar-hide">
-                                    {generatedVariants.length === 0 ? (
-                                        <div className="text-slate-400 text-xs italic p-2">Nhấn "Áp dụng" để xem trước các mã đề.</div>
-                                    ) : (
-                                        generatedVariants.map((v, i) => (
-                                            <button key={i} onClick={() => setActiveVariantIndex(i)} className={`px-4 py-2 rounded-lg font-bold text-xs whitespace-nowrap transition-all ${activeVariantIndex === i ? 'bg-brand-primary text-white shadow-md' : 'bg-white border text-slate-500'}`}>Mã {v.code}</button>
-                                        ))
-                                    )}
-                                </div>
-                                <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                                    {generatedVariants.length > 0 && (
-                                        <div className="space-y-6">
-                                            <div className="text-center pb-6 border-b-2 border-dashed border-slate-100">
-                                                <h2 className="text-xl font-black uppercase">{title}</h2>
-                                                <p className="font-bold text-brand-primary">MÃ ĐỀ: {generatedVariants[activeVariantIndex].code}</p>
-                                            </div>
-                                            {generatedVariants[activeVariantIndex].questions.map((q, i) => (
-                                                <div key={i}>
-                                                    <p className="font-bold text-slate-800 text-sm mb-2">Câu {i+1}: {q.question}</p>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pl-4">
-                                                        {q.options.map((o, oi) => (
-                                                            <p key={oi} className={`text-xs p-2 rounded-lg border ${q.correctAnswer === o ? 'bg-green-50 border-green-200 font-bold' : 'bg-slate-50 border-transparent'}`}>{String.fromCharCode(65+oi)}. {o}</p>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                )}
+
+                                <div className="pt-4 border-t">
+                                    <button onClick={handleSaveExam} className="w-full py-4 bg-green-600 text-white rounded-xl font-black text-lg shadow-lg hover:bg-green-700 transition-all">
+                                        HOÀN TẤT & GIAO BÀI
+                                    </button>
                                 </div>
                             </div>
                         </div>

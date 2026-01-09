@@ -4,7 +4,7 @@ import { supabase } from '../../../services/supabaseClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import Breadcrumb from '../../../components/common/Breadcrumb';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
-import { BriefcaseIcon, SparklesIcon, ChevronRightIcon, ClockIcon } from '../../../components/icons';
+import { BriefcaseIcon, SparklesIcon, ChevronRightIcon, ClockIcon, CheckCircleIcon } from '../../../components/icons';
 
 interface ExamListProps {
     subject: { id: string, name: string };
@@ -27,7 +27,6 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
     const fetchExams = async () => {
         setIsLoading(true);
         try {
-            // Lấy tất cả bài thi đã public trước, sau đó lọc phía Client để đảm bảo chính xác
             const { data, error } = await supabase
                 .from('teacher_exams')
                 .select('*, exam_results(id, user_id)')
@@ -37,25 +36,21 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
             if (error) throw error;
 
             if (data) {
-                // Fuzzy Search: So sánh tên môn học và lớp học một cách tương đối
-                // Ví dụ: "Toán học" sẽ khớp với "Toán", "Lớp 6" khớp "Lớp 6A" (nếu có)
+                // Lọc mềm (Fuzzy match)
                 const targetSub = subject.name.toLowerCase().trim();
                 const targetGrade = grade.name.toLowerCase().trim();
 
                 const filtered = data.filter(exam => {
                     const examSub = (exam.subject || "").toLowerCase().trim();
                     const examGrade = (exam.grade || "").toLowerCase().trim();
-
-                    // Logic so sánh mở rộng
                     const isSubjectMatch = examSub.includes(targetSub) || targetSub.includes(examSub);
                     const isGradeMatch = examGrade.includes(targetGrade) || targetGrade.includes(examGrade);
-
                     return isSubjectMatch && isGradeMatch;
                 });
                 setExams(filtered);
             }
         } catch (e) {
-            console.error("Fetch exam error:", e);
+            console.error("Lỗi tải đề:", e);
         } finally {
             setIsLoading(false);
         }
@@ -64,47 +59,38 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
     const handleSelectTeacherExam = (exam: any) => {
         const isExpired = new Date(exam.deadline) < new Date();
         if (isExpired) {
-            alert("Rất tiếc, bài tập này đã hết hạn nộp.");
+            alert("Bài tập này đã hết hạn.");
             return;
         }
 
-        // Logic check làm lại bài
         const userResult = exam.exam_results?.find((r: any) => r.user_id === user?.id);
         if (userResult) {
-            if (!window.confirm("Bạn đã nộp bài này rồi. Bạn có muốn làm lại để cải thiện điểm số không?")) return;
+            if (!window.confirm("Bạn đã làm bài này rồi. Có muốn làm lại để cải thiện điểm không?")) return;
         }
 
-        // --- TRÍCH XUẤT DỮ LIỆU CÂU HỎI THÔNG MINH ---
-        const dbData = exam.questions;
+        // Logic lấy câu hỏi an toàn
+        const dbContent = exam.questions;
         let finalQuestions = [];
         let examTitle = exam.title;
         let essayQs = [];
 
-        if (!dbData) {
-            alert("Lỗi dữ liệu: Đề thi này trống. Vui lòng báo giáo viên.");
+        if (!dbContent) {
+            alert("Lỗi: Dữ liệu đề thi trống.");
             return;
         }
 
-        // Trường hợp 1: Dữ liệu chuẩn mới (có variants)
-        if (dbData.variants && Array.isArray(dbData.variants) && dbData.variants.length > 0) {
-            const randomIndex = Math.floor(Math.random() * dbData.variants.length);
-            const variant = dbData.variants[randomIndex];
+        // Ưu tiên lấy từ variants
+        if (dbContent.variants && Array.isArray(dbContent.variants) && dbContent.variants.length > 0) {
+            const randomIndex = Math.floor(Math.random() * dbContent.variants.length);
+            const variant = dbContent.variants[randomIndex];
             finalQuestions = variant.questions;
             examTitle = `${exam.title} (Mã đề: ${variant.code})`;
-            essayQs = dbData.essay_questions || dbData.essayQuestions || [];
+            essayQs = dbContent.essayQuestions || [];
         } 
-        // Trường hợp 2: Dữ liệu fallback (original_questions)
-        else if (Array.isArray(dbData.original_questions)) {
-            finalQuestions = dbData.original_questions;
-            essayQs = dbData.essay_questions || [];
-        }
-        // Trường hợp 3: Dữ liệu cũ (trực tiếp là mảng hoặc object questions)
-        else if (Array.isArray(dbData)) {
-            finalQuestions = dbData;
-        } 
-        else if (dbData.questions && Array.isArray(dbData.questions)) {
-            finalQuestions = dbData.questions;
-            essayQs = dbData.essayQuestions || [];
+        // Fallback về questions gốc
+        else if (dbContent.questions && Array.isArray(dbContent.questions)) {
+            finalQuestions = dbContent.questions;
+            essayQs = dbContent.essayQuestions || [];
         }
 
         if (!finalQuestions || finalQuestions.length === 0) {
@@ -113,16 +99,16 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
         }
 
         onSelectExam({
-            sourceSchool: "Giáo viên bộ môn",
+            sourceSchool: "Đề thi Giáo viên",
             title: examTitle,
-            timeLimit: "45 phút", // Mặc định nếu không có cấu hình
+            timeLimit: "45 phút",
             questions: finalQuestions,
             essayQuestions: essayQs,
-            externalLink: dbData.external_link || dbData.externalLink
+            externalLink: dbContent.externalLink
         }, exam.id);
     };
 
-    if (isLoading) return <div className="py-20"><LoadingSpinner text="Đang tải danh sách đề thi..." /></div>;
+    if (isLoading) return <div className="py-20"><LoadingSpinner text="Đang tải bài tập..." /></div>;
 
     return (
         <div className="container mx-auto max-w-5xl animate-scale-in">
@@ -132,13 +118,12 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                 <div className="lg:col-span-2">
                     <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
                         <BriefcaseIcon className="w-7 h-7 mr-3 text-orange-500" />
-                        Bài tập & Đề thi từ Giáo viên
+                        Bài tập từ Giáo viên
                     </h2>
                     
                     {exams.length === 0 ? (
                         <div className="bg-white p-12 rounded-3xl border-2 border-dashed border-slate-200 text-center">
-                            <p className="text-slate-500 font-medium">Hiện tại chưa có bài tập nào cho môn này.</p>
-                            <p className="text-slate-400 text-sm mt-1">Vui lòng quay lại sau hoặc nhắc giáo viên giao bài nhé.</p>
+                            <p className="text-slate-500 font-medium">Chưa có bài tập nào.</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -169,8 +154,6 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                                                     <ClockIcon className="w-4 h-4 mr-1.5" />
                                                     Hạn: {new Date(exam.deadline).toLocaleDateString('vi-VN')}
                                                 </span>
-                                                <span className="text-slate-300">|</span>
-                                                <span className="text-slate-400 font-bold text-xs bg-slate-100 px-2 py-0.5 rounded">{exam.subject}</span>
                                             </div>
                                         </div>
                                         <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${
@@ -194,7 +177,7 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                         </div>
                         <h2 className="text-2xl font-bold mb-4">Luyện thi với AI</h2>
                         <p className="mb-8 text-indigo-100 text-sm leading-relaxed">
-                            Ngoài bài tập giáo viên giao, bạn có thể yêu cầu AI tạo thêm đề thi thử ngẫu nhiên để ôn luyện.
+                            Yêu cầu AI tạo thêm đề thi thử ngẫu nhiên.
                         </p>
                         <button
                             onClick={onGenerateRandom}
