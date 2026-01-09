@@ -10,15 +10,11 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { 
     CloudArrowUpIcon, 
     CheckCircleIcon, 
-    PencilSquareIcon, 
-    XMarkIcon, 
     ClockIcon, 
-    ChartBarIcon, 
     ArrowPathIcon, 
     TrashIcon,
     PlusIcon,
     ArrowRightIcon,
-    DocumentTextIcon,
     ShieldCheckIcon
 } from '../../components/icons';
 
@@ -43,15 +39,20 @@ const ExamManager: React.FC = () => {
     const [subject, setSubject] = useState(ALL_SUBJECTS[0]);
     const [grade, setGrade] = useState(ALL_GRADES[0]);
     
-    // Default deadline: 7 days from now
+    // Default deadline: 7 days from now, handled carefully to avoid timezone issues
     const getDefaultDeadline = () => {
-        const d = new Date();
-        d.setDate(d.getDate() + 7);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        return d.toISOString().slice(0, 16);
+        const date = new Date();
+        date.setDate(date.getDate() + 7);
+        // Format to YYYY-MM-DDTHH:MM local time for input
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
+
     const [deadline, setDeadline] = useState(getDefaultDeadline());
-    
     const [externalLink, setExternalLink] = useState('');
     const [uploadedFile, setUploadedFile] = useState<{ file: File, base64?: string, text?: string } | null>(null);
     
@@ -75,29 +76,20 @@ const ExamManager: React.FC = () => {
     const fetchMyExams = async () => {
         if (!user) return;
         setIsLoading(true);
-        
-        const safetyTimer = setTimeout(() => setIsLoading(false), 10000);
-
         try {
             const { data, error } = await supabase.from('teacher_exams')
                 .select('*, exam_results(count)')
                 .eq('teacher_id', user.id)
                 .order('created_at', { ascending: false });
             
-            if (error) {
-                // Fallback: Query đơn giản
-                const { data: simpleData } = await supabase.from('teacher_exams')
-                    .select('*')
-                    .eq('teacher_id', user.id)
-                    .order('created_at', { ascending: false });
-                setMyExams(simpleData || []);
-            } else {
-                setMyExams(data || []);
-            }
+            if (error) throw error;
+            setMyExams(data || []);
         } catch (err: any) {
-            console.error("Lỗi hệ thống:", err);
+            console.error("Lỗi tải đề:", err);
+            // Fallback nếu lỗi relation
+            const { data: simpleData } = await supabase.from('teacher_exams').select('*').eq('teacher_id', user.id);
+            setMyExams(simpleData || []);
         } finally {
-            clearTimeout(safetyTimer);
             setIsLoading(false);
         }
     };
@@ -134,7 +126,6 @@ const ExamManager: React.FC = () => {
     const handleParse = async () => {
         if (!uploadedFile) { alert("Vui lòng chọn file đề thi."); return; }
         if (!title.trim()) { alert("Vui lòng nhập tên đợt thi."); return; }
-        if (!deadline) { alert("Vui lòng chọn hạn nộp bài."); return; }
         
         setIsLoading(true);
         try {
@@ -142,17 +133,17 @@ const ExamManager: React.FC = () => {
             const parsedQuiz = await parseExamDocument(base64, uploadedFile.file.type, uploadedFile.text);
             
             if (!parsedQuiz.questions || parsedQuiz.questions.length === 0) {
-                if (window.confirm("AI không tìm thấy câu hỏi trắc nghiệm nào rõ ràng. Bạn có muốn tự nhập thủ công không?")) {
+                if (window.confirm("AI không tìm thấy câu hỏi trắc nghiệm. Bạn có muốn nhập tay không?")) {
                     setQuestions([{
-                        question: "Câu hỏi 1...",
-                        options: ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
-                        correctAnswer: "Đáp án A",
+                        question: "Câu hỏi mẫu...",
+                        options: ["A", "B", "C", "D"],
+                        correctAnswer: "A",
                         explanation: ""
                     }]);
                     setStep(2);
                     return;
                 } else {
-                    throw new Error("Không tìm thấy dữ liệu câu hỏi.");
+                    throw new Error("Không tìm thấy dữ liệu.");
                 }
             }
             
@@ -160,7 +151,7 @@ const ExamManager: React.FC = () => {
             setEssayQuestions(parsedQuiz.essayQuestions || []);
             setStep(2);
         } catch (error: any) { 
-            alert("LỖI PHÂN TÍCH: " + (error.message || "Hệ thống AI đang bận.")); 
+            alert("LỖI: " + error.message); 
         } finally { 
             setIsLoading(false); 
         }
@@ -187,52 +178,73 @@ const ExamManager: React.FC = () => {
 
     const handleSaveExam = async () => {
         if (!user) return;
+        
+        // Validation cơ bản
+        if (questions.length === 0) {
+            alert("Đề thi chưa có câu hỏi nào!");
+            return;
+        }
+
         setIsLoading(true);
         try {
-            // FIX: Luôn đảm bảo có variant, kể cả khi không trộn đề
+            // Logic quan trọng: Luôn đảm bảo có variants để Student View dễ xử lý
             let finalVariants = generatedVariants;
-            if (step === 3 && generatedVariants.length > 0) {
-                finalVariants = generatedVariants;
-            } else {
-                finalVariants = [{ code: 'GỐC', questions: questions }];
+            
+            // Nếu người dùng không trộn đề (hoặc generatedVariants rỗng), 
+            // tạo một variant mặc định là "GỐC"
+            if (finalVariants.length === 0) {
+                finalVariants = [{ 
+                    code: 'GỐC', 
+                    questions: [...questions] // Copy mảng để tránh tham chiếu
+                }];
             }
             
-            const rawData = {
-                questions: questions, 
-                essayQuestions: essayQuestions,
+            // Cấu trúc JSON chuẩn để lưu vào cột 'questions' trong Supabase
+            const examDataPayload = {
+                source: 'uploaded',
+                original_questions: questions, 
+                essay_questions: essayQuestions,
                 variants: finalVariants,
-                isShuffled: finalVariants.length > 1,
-                externalLink: externalLink
+                has_variants: finalVariants.length > 1,
+                external_link: externalLink
             };
             
             const isoDeadline = new Date(deadline).toISOString();
 
             const { error } = await supabase.from('teacher_exams').insert({
                 teacher_id: user.id,
-                title,
-                subject,
-                grade,
+                title: title.trim(),
+                subject: subject,
+                grade: grade,
                 deadline: isoDeadline,
-                questions: rawData,
+                questions: examDataPayload, // Lưu toàn bộ cục JSON vào đây
                 status: 'published'
             });
 
             if (error) throw error;
             
-            alert("ĐÃ GIAO ĐỀ THÀNH CÔNG! Học sinh có thể vào làm bài ngay.");
-            // Reset state
+            alert("✅ ĐÃ GIAO ĐỀ THÀNH CÔNG!\nHọc sinh trong khối lớp đã có thể nhìn thấy bài thi này.");
+            
+            // Reset toàn bộ state về ban đầu
             setViewMode('list'); 
             setStep(1); 
             setTitle(''); 
             setDeadline(getDefaultDeadline()); 
             setExternalLink('');
-            setQuestions([]); setEssayQuestions([]); setUploadedFile(null); setGeneratedVariants([]);
+            setQuestions([]); 
+            setEssayQuestions([]); 
+            setUploadedFile(null); 
+            setGeneratedVariants([]);
             
+            // Refresh danh sách
             fetchMyExams();
+
         } catch (err: any) {
             alert(`LỖI LƯU TRỮ: ${err.message}`);
             console.error("Database save error:", err);
-        } finally { setIsLoading(false); }
+        } finally { 
+            setIsLoading(false); 
+        }
     };
 
     const updateQuestion = (index: number, field: keyof QuizQuestion, value: any) => {
@@ -274,7 +286,7 @@ const ExamManager: React.FC = () => {
                     <div className="grid gap-4">
                         {myExams.length === 0 ? (
                             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
-                                Chưa có đề thi nào. Hãy nhấn "Giao đề mới" để bắt đầu đẩy bài cho học sinh.
+                                Chưa có đề thi nào. Hãy nhấn "Giao đề mới" để bắt đầu.
                             </div>
                         ) : (
                             myExams.map(exam => {
@@ -310,7 +322,6 @@ const ExamManager: React.FC = () => {
                                                 >
                                                     Xem chi tiết
                                                 </button>
-                                                {/* Tính năng xóa có thể thêm sau */}
                                                 <button className="p-2 text-slate-400 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
                                             </div>
                                         </div>
@@ -324,6 +335,7 @@ const ExamManager: React.FC = () => {
 
             {viewMode === 'create' && (
                 <div className="max-w-4xl mx-auto">
+                    {/* Stepper UI */}
                     <div className="flex items-center justify-center mb-10">
                         <div className="flex items-center space-x-4">
                             {[1, 2, 3].map((s) => (
@@ -344,8 +356,8 @@ const ExamManager: React.FC = () => {
                             </h2>
                             <div className="space-y-6">
                                 <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Tên đợt thi (VD: Kiểm tra giữa kỳ)</label>
-                                    <input type="text" className="w-full p-4 border-2 rounded-2xl bg-slate-50 focus:bg-white focus:border-brand-primary outline-none transition-all font-bold" placeholder="Nhập tên đợt thi..." value={title} onChange={e => setTitle(e.target.value)} />
+                                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Tên đợt thi</label>
+                                    <input type="text" className="w-full p-4 border-2 rounded-2xl bg-slate-50 focus:bg-white focus:border-brand-primary outline-none transition-all font-bold" placeholder="VD: Kiểm tra 15 phút..." value={title} onChange={e => setTitle(e.target.value)} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -367,12 +379,12 @@ const ExamManager: React.FC = () => {
                                         <input type="datetime-local" className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" value={deadline} onChange={e => setDeadline(e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Link đề gốc (PDF/Drive)</label>
+                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Link đề gốc (Drive/PDF)</label>
                                         <input type="url" className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" placeholder="https://..." value={externalLink} onChange={e => setExternalLink(e.target.value)} />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Tải đề thi (AI tự trích xuất)</label>
+                                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Tải file đề (AI tự nhập)</label>
                                     <div className="relative border-4 border-dashed border-slate-100 rounded-3xl p-10 text-center hover:bg-indigo-50 transition-colors cursor-pointer">
                                         <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx,.png,.jpg,.jpeg" onChange={handleFileChange} />
                                         {uploadedFile ? (
@@ -389,7 +401,7 @@ const ExamManager: React.FC = () => {
                                 </div>
                                 <div className="flex gap-4 pt-4">
                                     <button onClick={() => setViewMode('list')} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 uppercase tracking-widest text-xs">Hủy bỏ</button>
-                                    <button onClick={handleParse} className="flex-[2] py-4 bg-brand-primary text-white font-black rounded-2xl shadow-xl hover:shadow-indigo-200 uppercase tracking-widest text-xs">Bắt đầu phân tích</button>
+                                    <button onClick={handleParse} className="flex-[2] py-4 bg-brand-primary text-white font-black rounded-2xl shadow-xl hover:shadow-indigo-200 uppercase tracking-widest text-xs">TIẾP TỤC</button>
                                 </div>
                             </div>
                         </div>
@@ -398,13 +410,13 @@ const ExamManager: React.FC = () => {
                     {step === 2 && (
                         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
                              <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-slate-800">Kiểm tra câu hỏi AI trích xuất</h2>
-                                <button onClick={() => setStep(3)} className="bg-brand-primary text-white px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">Tiếp tục: Trộn mã đề <ArrowRightIcon className="h-4 w-4" /></button>
+                                <h2 className="text-xl font-bold text-slate-800">Duyệt câu hỏi ({questions.length} câu)</h2>
+                                <button onClick={() => setStep(3)} className="bg-brand-primary text-white px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">Trộn đề & Giao bài <ArrowRightIcon className="h-4 w-4" /></button>
                              </div>
-                             <div className="p-8 space-y-8">
+                             <div className="p-8 space-y-8 h-[60vh] overflow-y-auto custom-scrollbar">
                                 {questions.map((q, qIdx) => (
                                     <div key={qIdx} className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 relative group">
-                                        <button onClick={() => setQuestions(questions.filter((_, i) => i !== qIdx))} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><TrashIcon className="h-5 w-5" /></button>
+                                        <button onClick={() => setQuestions(questions.filter((_, i) => i !== qIdx))} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="h-5 w-5" /></button>
                                         <div className="flex gap-4">
                                             <span className="w-8 h-8 bg-brand-primary text-white rounded-full flex items-center justify-center font-black text-xs shrink-0">{qIdx + 1}</span>
                                             <div className="flex-1">
@@ -429,7 +441,7 @@ const ExamManager: React.FC = () => {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-1 space-y-6">
                                 <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100">
-                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center"><ArrowPathIcon className="h-5 w-5 mr-2 text-indigo-500" /> Trộn mã đề</h3>
+                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center"><ArrowPathIcon className="h-5 w-5 mr-2 text-indigo-500" /> Cấu hình trộn đề</h3>
                                     <div className="space-y-6">
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Số mã đề (1-8)</label>
@@ -453,7 +465,7 @@ const ExamManager: React.FC = () => {
                             <div className="lg:col-span-2 bg-white rounded-[2rem] shadow-xl border border-slate-100 flex flex-col h-[70vh]">
                                 <div className="p-4 bg-slate-50 border-b flex gap-2 overflow-x-auto scrollbar-hide">
                                     {generatedVariants.length === 0 ? (
-                                        <div className="text-slate-400 text-xs italic p-2">Nhấn "Áp dụng" để xem trước.</div>
+                                        <div className="text-slate-400 text-xs italic p-2">Nhấn "Áp dụng" để xem trước các mã đề.</div>
                                     ) : (
                                         generatedVariants.map((v, i) => (
                                             <button key={i} onClick={() => setActiveVariantIndex(i)} className={`px-4 py-2 rounded-lg font-bold text-xs whitespace-nowrap transition-all ${activeVariantIndex === i ? 'bg-brand-primary text-white shadow-md' : 'bg-white border text-slate-500'}`}>Mã {v.code}</button>
