@@ -8,6 +8,7 @@ import type { Quiz, MockExamSubject, TestGrade } from '../../../types/index';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
+import MathRenderer from '../../../components/common/MathRenderer'; // Import MathRenderer
 import { ArrowRightCircleIcon, ArrowLeftIcon, ClockIcon, DocumentTextIcon, ExclamationTriangleIcon, CheckCircleIcon } from '../../../components/icons';
 
 interface MockExamViewProps {
@@ -157,7 +158,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
 
     if (!quizData || !currentQuestion) return <p>Lỗi dữ liệu.</p>;
 
-    // Tính toán số câu đã làm
     const answeredCount = Object.keys(userAnswers).length;
     const totalQuestions = quizData.questions.length;
 
@@ -200,15 +200,33 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
 
                 {/* Question Body */}
                 <div className="flex-1 overflow-y-auto p-6 sm:p-10 custom-scrollbar">
+                    
+                    {/* --- ENGLISH SECTION HEADER --- */}
+                    {currentQuestion.section && (
+                        <div className="mb-6 p-3 bg-indigo-50 border-l-4 border-indigo-500 rounded-r-lg">
+                            <h3 className="font-black text-indigo-700 uppercase tracking-widest">{currentQuestion.section}</h3>
+                        </div>
+                    )}
+
+                    {/* --- GROUP CONTENT (READING PASSAGE / LISTENING TEXT) --- */}
+                    {currentQuestion.groupContent && (
+                        <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed text-sm font-medium">
+                            <div className="text-xs font-bold text-slate-400 uppercase mb-2 tracking-wider">Reading Passage / Context</div>
+                            <MathRenderer content={currentQuestion.groupContent} />
+                        </div>
+                    )}
+
                     {currentQuestion.image && (
                         <div className="mb-6 flex justify-center">
                             <img src={currentQuestion.image} alt="Question" className="max-h-60 rounded-lg border" />
                         </div>
                     )}
+                    
                     <h2 className="text-xl font-bold text-slate-800 mb-8 leading-snug">
                         <span className="text-brand-primary mr-2">Câu {currentQuestionIndex + 1}:</span>
-                        {currentQuestion.question}
+                        <MathRenderer content={currentQuestion.question} />
                     </h2>
+                    
                     <div className="space-y-3">
                         {currentQuestion.options.map((option, index) => {
                             const isSelected = option === selectedAnswer;
@@ -226,7 +244,9 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                                     <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold mr-4 text-sm shrink-0 transition-colors ${
                                         isSelected ? 'bg-brand-primary text-white' : 'bg-slate-100 text-slate-500'
                                     }`}>{label}</span>
-                                    <span className={`text-base pt-1 ${isSelected ? 'text-brand-primary font-medium' : 'text-slate-700'}`}>{option}</span>
+                                    <span className={`text-base pt-1 ${isSelected ? 'text-brand-primary font-medium' : 'text-slate-700'}`}>
+                                        <MathRenderer content={option} />
+                                    </span>
                                 </button>
                             );
                         })}
@@ -243,7 +263,6 @@ const MockExamView: React.FC<MockExamViewProps> = ({ subject, grade, initialQuiz
                         <ArrowLeftIcon className="h-4 w-4 mr-2" /> Câu trước
                     </button>
 
-                    {/* Quick navigation dots (hidden on mobile small) */}
                     <div className="hidden md:flex gap-1 overflow-x-auto max-w-xs px-2 no-scrollbar">
                         {quizData.questions.map((_, idx) => (
                             <div key={idx} className={`w-2 h-2 rounded-full ${idx === currentQuestionIndex ? 'bg-brand-primary scale-125' : userAnswers[idx] ? 'bg-indigo-300' : 'bg-slate-200'}`}></div>

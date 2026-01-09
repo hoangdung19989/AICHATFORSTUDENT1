@@ -7,15 +7,10 @@ import { parseExamDocument } from '../../services/geminiService';
 import type { QuizQuestion, EssayQuestion } from '../../types/index';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import MathRenderer from '../../components/common/MathRenderer'; // Import MathRenderer
 import { 
     CloudArrowUpIcon, 
-    CheckCircleIcon, 
-    ClockIcon, 
-    ArrowPathIcon, 
-    TrashIcon,
     PlusIcon,
-    ArrowRightIcon,
-    ShieldCheckIcon
 } from '../../components/icons';
 
 const ALL_SUBJECTS = ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "GDCD"];
@@ -42,7 +37,6 @@ const ExamManager: React.FC = () => {
     const getDefaultDeadline = () => {
         const d = new Date();
         d.setDate(d.getDate() + 7);
-        // Chuyển đổi sang format yyyy-MM-ddThh:mm để input type="datetime-local" hiểu
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         return d.toISOString().slice(0, 16);
     };
@@ -76,14 +70,10 @@ const ExamManager: React.FC = () => {
                 .select('*, exam_results(count)')
                 .eq('teacher_id', user.id)
                 .order('created_at', { ascending: false });
-            
             if (error) throw error;
             setMyExams(data || []);
-        } catch (err: any) {
-            console.error("Lỗi tải danh sách:", err);
-        } finally {
-            setIsLoading(false);
-        }
+        } catch (err: any) { console.error(err); } 
+        finally { setIsLoading(false); }
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,11 +89,9 @@ const ExamManager: React.FC = () => {
                 const conv = await mammoth.extractRawText({ arrayBuffer });
                 setUploadedFile({ file, text: conv.value });
             } catch (e) { 
-                alert("Lỗi đọc file Word. Hãy thử file khác."); 
+                alert("Lỗi đọc file Word."); 
                 setUploadedFile(null);
-            } finally {
-                setIsLoading(false);
-            }
+            } finally { setIsLoading(false); }
         } else {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -124,7 +112,6 @@ const ExamManager: React.FC = () => {
             const parsedQuiz = await parseExamDocument(base64, uploadedFile.file.type, uploadedFile.text);
             
             if (!parsedQuiz.questions || parsedQuiz.questions.length === 0) {
-                // Fallback nếu AI trả về rỗng
                 setQuestions([{
                     question: "Câu hỏi mẫu (AI chưa đọc được file)",
                     options: ["A", "B", "C", "D"],
@@ -168,14 +155,10 @@ const ExamManager: React.FC = () => {
 
         setIsLoading(true);
         try {
-            // 1. Chuẩn bị variants (Nếu chưa tạo thì lấy Gốc)
             let finalVariants = generatedVariants;
             if (finalVariants.length === 0) {
                 finalVariants = [{ code: 'GỐC', questions: [...questions] }];
             }
-
-            // 2. Tẩy sạch dữ liệu (Deep Clone & Remove undefined)
-            // Đây là bước quan trọng nhất để tránh Supabase bị treo do lỗi định dạng JSON
             const cleanQuestions = JSON.parse(JSON.stringify(questions));
             const cleanEssay = JSON.parse(JSON.stringify(essayQuestions));
             const cleanVariants = JSON.parse(JSON.stringify(finalVariants));
@@ -191,22 +174,18 @@ const ExamManager: React.FC = () => {
 
             const isoDeadline = new Date(deadline).toISOString();
 
-            // 3. Gửi lên Supabase
             const { error } = await supabase.from('teacher_exams').insert({
                 teacher_id: user.id,
                 title: title.trim(),
                 subject: subject,
                 grade: grade,
                 deadline: isoDeadline,
-                questions: examPayload, // Cột jsonb
+                questions: examPayload, 
                 status: 'published'
             });
 
             if (error) throw error;
-
             alert("✅ GIAO BÀI THÀNH CÔNG!");
-            
-            // 4. Reset trạng thái
             setStep(1);
             setViewMode('list');
             setTitle('');
@@ -215,10 +194,9 @@ const ExamManager: React.FC = () => {
             setGeneratedVariants([]);
             setUploadedFile(null);
             fetchMyExams();
-
         } catch (err: any) {
             console.error("Save Error:", err);
-            alert(`LỖI: ${err.message || "Không thể lưu đề thi."}`);
+            alert(`LỖI: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -262,9 +240,7 @@ const ExamManager: React.FC = () => {
 
                     <div className="grid gap-4">
                         {myExams.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
-                                Chưa có đề thi nào.
-                            </div>
+                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">Chưa có đề thi nào.</div>
                         ) : (
                             myExams.map(exam => {
                                 const submissionCount = exam.exam_results?.[0]?.count || 0;
@@ -280,12 +256,7 @@ const ExamManager: React.FC = () => {
                                         <div className="text-right">
                                             <span className="block text-2xl font-black text-slate-800">{submissionCount}</span>
                                             <span className="text-[10px] text-slate-400 uppercase">Bài nộp</span>
-                                            <button 
-                                                onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })}
-                                                className="block mt-2 text-indigo-600 text-xs font-bold hover:underline"
-                                            >
-                                                Xem chi tiết
-                                            </button>
+                                            <button onClick={() => navigate('exam-results-viewer', { examId: exam.id, examTitle: exam.title })} className="block mt-2 text-indigo-600 text-xs font-bold hover:underline">Xem chi tiết</button>
                                         </div>
                                     </div>
                                 );
@@ -309,6 +280,9 @@ const ExamManager: React.FC = () => {
                     {step === 1 && (
                         <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
                             <h2 className="text-2xl font-bold">Bước 1: Thông tin đề thi</h2>
+                            <div className="p-4 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium border border-blue-100">
+                                💡 <strong>Mẹo:</strong> Để AI nhận diện công thức Toán/Lý/Hóa tốt nhất, hãy tải lên <strong>Ảnh (JPG/PNG)</strong> hoặc file <strong>PDF</strong>. Nếu dùng file Word, hãy đảm bảo công thức không bị lỗi font MathType.
+                            </div>
                             <input type="text" className="w-full p-4 border rounded-xl font-bold" placeholder="Tên bài thi (VD: Kiểm tra 15p)" value={title} onChange={e => setTitle(e.target.value)} />
                             <div className="grid grid-cols-2 gap-4">
                                 <select className="p-3 border rounded-xl" value={subject} onChange={e => setSubject(e.target.value)}>{ALL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
@@ -347,12 +321,20 @@ const ExamManager: React.FC = () => {
                                 {questions.map((q, idx) => (
                                     <div key={idx} className="border p-4 rounded-xl relative group">
                                         <button onClick={() => setQuestions(questions.filter((_, i) => i !== idx))} className="absolute top-2 right-2 text-red-400 hover:text-red-600 font-bold text-xs">Xóa</button>
-                                        <p className="font-bold mb-2">Câu {idx + 1}</p>
-                                        <textarea className="w-full p-2 border rounded-lg mb-2 font-medium" rows={2} value={q.question} onChange={e => updateQuestion(idx, 'question', e.target.value)} />
+                                        
+                                        {/* Hiển thị trường Section/GroupContent để sửa */}
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <input className="p-2 border rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50" placeholder="Section (VD: I. READING)" value={q.section || ''} onChange={e => updateQuestion(idx, 'section', e.target.value)} />
+                                            <input className="p-2 border rounded-lg text-xs text-slate-600" placeholder="Đoạn văn dùng chung (nếu có)..." value={q.groupContent || ''} onChange={e => updateQuestion(idx, 'groupContent', e.target.value)} />
+                                        </div>
+
+                                        <div className="mb-2 font-bold text-slate-700">Câu {idx + 1}: <MathRenderer content={q.question} /></div>
+                                        <textarea className="w-full p-2 border rounded-lg mb-2 font-medium font-mono text-sm bg-slate-50" rows={2} value={q.question} onChange={e => updateQuestion(idx, 'question', e.target.value)} />
                                         <div className="grid grid-cols-2 gap-2">
                                             {q.options.map((opt, oIdx) => (
                                                 <div key={oIdx} onClick={() => setCorrectAnswer(idx, opt)} className={`p-2 border rounded cursor-pointer ${q.correctAnswer === opt ? 'bg-green-100 border-green-500' : ''}`}>
-                                                    <input className="bg-transparent w-full outline-none" value={opt} onChange={e => updateOption(idx, oIdx, e.target.value)} />
+                                                    <div className="mb-1 text-xs text-slate-500"><MathRenderer content={opt} /></div>
+                                                    <input className="bg-transparent w-full outline-none font-mono text-sm" value={opt} onChange={e => updateOption(idx, oIdx, e.target.value)} />
                                                 </div>
                                             ))}
                                         </div>

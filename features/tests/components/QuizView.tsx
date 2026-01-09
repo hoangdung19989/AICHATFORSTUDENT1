@@ -8,6 +8,7 @@ import type { Quiz, TestSubject, TestGrade, TestType, Semester } from '../../../
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from './TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
+import MathRenderer from '../../../components/common/MathRenderer'; // Import
 import { ArrowRightCircleIcon, ArrowLeftIcon, CheckCircleIcon, XCircleIcon, ClockIcon, ShieldCheckIcon } from '../../../components/icons';
 
 interface QuizViewProps {
@@ -117,10 +118,26 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 sm:p-10 custom-scrollbar">
+                    {/* Section Header */}
+                    {currentQuestion.section && (
+                        <div className="mb-4 text-xs font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 p-2 rounded w-fit">
+                            {currentQuestion.section}
+                        </div>
+                    )}
+
+                    {/* Reading Passage */}
+                    {currentQuestion.groupContent && (
+                        <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed text-sm">
+                            <div className="text-xs font-bold text-slate-400 uppercase mb-2 tracking-wider">Nội dung bài đọc</div>
+                            <MathRenderer content={currentQuestion.groupContent} />
+                        </div>
+                    )}
+
                     {currentQuestion.image && <img src={currentQuestion.image} alt="Minh họa" className="max-h-64 object-contain rounded-lg border mb-6 mx-auto" />}
+                    
                     <h2 className="text-xl font-bold text-slate-800 mb-8 leading-snug">
                         <span className="text-brand-primary mr-2">Câu {currentQuestionIndex + 1}:</span>
-                        {currentQuestion.question}
+                        <MathRenderer content={currentQuestion.question} />
                     </h2>
 
                     <div className="space-y-4">
@@ -137,7 +154,9 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                                     <span className={`w-8 h-8 flex items-center justify-center rounded-full font-bold mr-4 shrink-0 text-sm ${isSelected ? 'bg-brand-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
                                         {String.fromCharCode(65 + index)}
                                     </span>
-                                    <span className={`text-base pt-1 ${isSelected ? 'text-brand-primary font-bold' : 'text-slate-700'}`}>{option}</span>
+                                    <span className={`text-base pt-1 ${isSelected ? 'text-brand-primary font-bold' : 'text-slate-700'}`}>
+                                        <MathRenderer content={option} />
+                                    </span>
                                 </button>
                             );
                         })}

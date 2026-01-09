@@ -7,6 +7,7 @@ import type { Quiz, SelfPracticeSubject, TestGrade, PracticeLesson } from '../..
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
+import MathRenderer from '../../../components/common/MathRenderer'; // Import
 import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, CheckCircleIcon as CheckIconFilled } from '../../../components/icons';
 
 interface PracticeViewProps {
@@ -33,12 +34,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         setShowResults(true);
         if (user) {
             try {
-                const studentName = 
-                    user.user_metadata?.full_name || 
-                    profile?.full_name || 
-                    user.email?.split('@')[0] || 
-                    'Học sinh';
-
+                const studentName = user.user_metadata?.full_name || profile?.full_name || user.email?.split('@')[0] || 'Học sinh';
                 const { error } = await supabase.from('exam_results').insert({
                     user_id: user.id,
                     subject_name: subject.name,
@@ -53,9 +49,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     }
                 });
                 if (error) console.error("Failed to save practice result:", error.message);
-            } catch (err) {
-                 console.error("Exception saving practice result:", err);
-            }
+            } catch (err) { console.error("Exception saving practice result:", err); }
         }
     };
     
@@ -71,26 +65,14 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         }
     }, [isQuizFinished, score]);
 
+    const handleRetake = () => { setShowResults(false); onRetry(); };
 
-    const handleRetake = () => {
-        setShowResults(false);
-        onRetry();
-    };
-
-    const cleanOptionText = (text: string) => {
-        return text.replace(/^[A-D]\.\s*/, '').replace(/^\d+\.\s*/, '');
-    };
+    const cleanOptionText = (text: string) => text.replace(/^[A-D]\.\s*/, '').replace(/^\d+\.\s*/, '');
 
     if (isLoading) {
         return (
             <div className="max-w-4xl mx-auto px-4 py-6">
-                 <Breadcrumb items={[
-                    { label: 'Tự học', onClick: onBackToSelfStudy },
-                    { label: 'Tự luyện', onClick: onBackToSubjects },
-                    { label: subject.name, onClick: onBack },
-                    { label: grade.name, onClick: onBack },
-                    { label: 'Luyện tập' }
-                ]} />
+                 <Breadcrumb items={[{ label: 'Tự học', onClick: onBackToSelfStudy }, { label: 'Tự luyện', onClick: onBackToSubjects }, { label: subject.name, onClick: onBack }, { label: grade.name, onClick: onBack }, { label: 'Luyện tập' }]} />
                 <div className="bg-white rounded-[2.5rem] shadow-xl p-12 flex flex-col items-center">
                     <LoadingSpinner text="AI đang soạn thảo bài luyện tập..." subText={`Đang trích xuất kiến thức bài: ${lesson.title}`} />
                 </div>
@@ -103,21 +85,11 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
     if (error || hasNoQuestions) {
         return (
             <div className="max-w-4xl mx-auto px-4 py-6 animate-scale-in">
-                <Breadcrumb items={[
-                    { label: 'Tự học', onClick: onBackToSelfStudy },
-                    { label: 'Tự luyện', onClick: onBackToSubjects },
-                    { label: subject.name, onClick: onBack },
-                    { label: grade.name, onClick: onBack },
-                    { label: 'Luyện tập' }
-                ]} />
+                <Breadcrumb items={[{ label: 'Tự học', onClick: onBackToSelfStudy }, { label: 'Tự luyện', onClick: onBackToSubjects }, { label: subject.name, onClick: onBack }, { label: grade.name, onClick: onBack }, { label: 'Luyện tập' }]} />
                 <div className="bg-white rounded-[2.5rem] shadow-xl p-12 text-center border-2 border-red-50">
-                    <div className="w-20 h-20 bg-red-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <ExclamationTriangleIcon className="h-10 w-10 text-red-600" />
-                    </div>
+                    <div className="w-20 h-20 bg-red-100 rounded-3xl flex items-center justify-center mx-auto mb-6"><ExclamationTriangleIcon className="h-10 w-10 text-red-600" /></div>
                     <h3 className="text-2xl font-bold text-slate-800 mb-4">Ối! Có lỗi xảy ra</h3>
-                    <p className="text-slate-500 mb-10 max-w-md mx-auto">
-                        {error || "Hệ thống AI không thể tạo câu hỏi cho bài học này ngay bây giờ. Điều này có thể do máy chủ đang bận."}
-                    </p>
+                    <p className="text-slate-500 mb-10 max-w-md mx-auto">{error || "Hệ thống AI không thể tạo câu hỏi cho bài học này ngay bây giờ."}</p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <button onClick={onRetry} className="bg-brand-primary text-white font-black px-8 py-4 rounded-2xl hover:bg-brand-primary-dark shadow-lg shadow-indigo-100 transition-all active:scale-95">THỬ LẠI LẦN NỮA</button>
                         <button onClick={onBack} className="bg-slate-100 text-slate-600 font-black px-8 py-4 rounded-2xl hover:bg-slate-200 transition-all">CHỌN BÀI KHÁC</button>
@@ -131,22 +103,14 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         return <TestResultsView score={finalScore} totalQuestions={quizData.questions.length} onRetake={handleRetake} onBackToSubjects={onBackToSubjects} />;
     }
 
-    if (!quizData || !currentQuestion) {
-        return null;
-    }
+    if (!quizData || !currentQuestion) return null;
     
     const progressPercent = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
     const isUserCorrect = selectedAnswer === currentQuestion.correctAnswer;
 
     return (
         <div className="max-w-4xl mx-auto px-4 py-6 animate-slide-up">
-            <Breadcrumb items={[
-                { label: 'Tự học', onClick: onBackToSelfStudy },
-                { label: 'Tự luyện', onClick: onBackToSubjects },
-                { label: subject.name, onClick: onBack },
-                { label: grade.name, onClick: onBack },
-                { label: 'Luyện tập' }
-            ]} />
+            <Breadcrumb items={[{ label: 'Tự học', onClick: onBackToSelfStudy }, { label: 'Tự luyện', onClick: onBackToSubjects }, { label: subject.name, onClick: onBack }, { label: grade.name, onClick: onBack }, { label: 'Luyện tập' }]} />
 
             <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden relative">
                 <div className="px-8 pt-8 pb-4 bg-slate-50/50">
@@ -154,35 +118,22 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                         <span className="bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">{quizData.sourceSchool || subject.name}</span>
                         <span className="text-brand-primary">Đang luyện tập bài học</span>
                     </div>
-
                     <h1 className="text-lg font-bold text-slate-700 mb-6 text-center">{lesson.title}</h1>
-
                     <div className="relative h-3 w-full bg-slate-200 rounded-full overflow-hidden mb-2 shadow-inner">
-                        <div 
-                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-brand-primary to-indigo-400 transition-all duration-700 ease-out rounded-full" 
-                            style={{ width: `${progressPercent}%` }}
-                        ></div>
+                        <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-brand-primary to-indigo-400 transition-all duration-700 ease-out rounded-full" style={{ width: `${progressPercent}%` }}></div>
                     </div>
-
                     <div className="flex justify-between items-center">
                         <p className="text-slate-400 font-black text-[10px] uppercase">Tiến trình: {currentQuestionIndex + 1}/{quizData.questions.length} Câu</p>
-                        {isAnswered && (
-                            <span className={`text-[10px] font-black uppercase ${isUserCorrect ? 'text-green-500' : 'text-red-500'}`}>
-                                {isUserCorrect ? 'Chính xác! +1' : 'Tiếc quá!'}
-                            </span>
-                        )}
+                        {isAnswered && <span className={`text-[10px] font-black uppercase ${isUserCorrect ? 'text-green-500' : 'text-red-500'}`}>{isUserCorrect ? 'Chính xác! +1' : 'Tiếc quá!'}</span>}
                     </div>
                 </div>
 
                 <div className="p-8 sm:p-12">
-                    {currentQuestion.image && (
-                        <div className="mb-10 flex justify-center">
-                            <img src={currentQuestion.image} alt="Hình minh họa" className="max-h-64 object-contain rounded-3xl border-4 border-slate-50 shadow-lg" />
-                        </div>
-                    )}
-
+                    {currentQuestion.image && <div className="mb-10 flex justify-center"><img src={currentQuestion.image} alt="Hình minh họa" className="max-h-64 object-contain rounded-3xl border-4 border-slate-50 shadow-lg" /></div>}
                     <div className="mb-10">
-                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 leading-snug">{currentQuestion.question}</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 leading-snug">
+                            <MathRenderer content={currentQuestion.question} />
+                        </h2>
                     </div>
 
                     <div className="space-y-4">
@@ -210,28 +161,16 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                                     textClass = 'text-slate-400';
                                     labelClass = 'bg-slate-50 text-slate-200';
                                 }
-                            } else {
-                                // Trạng thái chưa nộp nhưng ĐANG CHỌN
-                                if (isSelected) {
-                                    buttonClass = 'bg-indigo-50 border-brand-primary ring-2 ring-indigo-100';
-                                    textClass = 'text-brand-primary font-bold';
-                                    labelClass = 'bg-brand-primary text-white';
-                                }
+                            } else if (isSelected) {
+                                buttonClass = 'bg-indigo-50 border-brand-primary ring-2 ring-indigo-100';
+                                textClass = 'text-brand-primary font-bold';
+                                labelClass = 'bg-brand-primary text-white';
                             }
 
                             return (
-                                 <button
-                                    key={index}
-                                    onClick={() => handleAnswerSelect(option)}
-                                    disabled={isAnswered}
-                                    className={`w-full text-left flex items-center p-5 rounded-2xl border-2 transition-all duration-200 group ${buttonClass}`}
-                                >
-                                    <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black mr-4 flex-shrink-0 transition-colors ${labelClass}`}>
-                                        {optionLabel}
-                                    </span>
-                                    <span className={`text-lg flex-1 ${textClass}`}>
-                                        {optionText}
-                                    </span>
+                                 <button key={index} onClick={() => handleAnswerSelect(option)} disabled={isAnswered} className={`w-full text-left flex items-center p-5 rounded-2xl border-2 transition-all duration-200 group ${buttonClass}`}>
+                                    <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black mr-4 flex-shrink-0 transition-colors ${labelClass}`}>{optionLabel}</span>
+                                    <span className={`text-lg flex-1 ${textClass}`}><MathRenderer content={optionText} /></span>
                                     {isAnswered && isCorrect && <CheckCircleIcon className="h-6 w-6 ml-3 text-green-600 shrink-0" />}
                                     {isAnswered && isSelected && !isCorrect && <XCircleIcon className="h-6 w-6 ml-3 text-red-600 shrink-0" />}
                                 </button>
@@ -240,46 +179,25 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     </div>
                 
                     {isAnswered && (
-                        <div className={`mt-10 p-6 rounded-[2rem] border-2 animate-scale-in ${
-                            isUserCorrect ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'
-                        }`}>
-                            <h4 className={`text-xs font-black mb-3 flex items-center uppercase tracking-widest ${
-                                isUserCorrect ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                                {isUserCorrect ? (
-                                    <><CheckCircleIcon className="h-4 w-4 mr-2" /> Tại sao bạn đúng?</>
-                                ) : (
-                                    <><XCircleIcon className="h-4 w-4 mr-2" /> Ghi nhớ kiến thức</>
-                                )}
+                        <div className={`mt-10 p-6 rounded-[2rem] border-2 animate-scale-in ${isUserCorrect ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
+                            <h4 className={`text-xs font-black mb-3 flex items-center uppercase tracking-widest ${isUserCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                                {isUserCorrect ? <><CheckCircleIcon className="h-4 w-4 mr-2" /> Tại sao bạn đúng?</> : <><XCircleIcon className="h-4 w-4 mr-2" /> Ghi nhớ kiến thức</>}
                             </h4>
-                            <p className={`${isUserCorrect ? 'text-green-800' : 'text-red-800'} leading-relaxed text-sm font-medium`}>
-                                {currentQuestion.explanation}
-                            </p>
+                            <div className={`${isUserCorrect ? 'text-green-800' : 'text-red-800'} leading-relaxed text-sm font-medium`}>
+                                <MathRenderer content={currentQuestion.explanation} />
+                            </div>
                         </div>
                     )}
                 </div>
 
                 <div className="px-8 py-6 bg-slate-50/80 border-t border-slate-100 flex justify-end items-center gap-6">
                     {!isAnswered ? (
-                        <button
-                            onClick={submitAnswer}
-                            disabled={!selectedAnswer}
-                            className={`flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 ${
-                                !selectedAnswer 
-                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 hover:-translate-y-1'
-                            }`}
-                        >
-                            Kiểm tra đáp án
-                            <CheckIconFilled className="h-5 w-5 ml-3" />
+                        <button onClick={submitAnswer} disabled={!selectedAnswer} className={`flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 ${!selectedAnswer ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 hover:-translate-y-1'}`}>
+                            Kiểm tra đáp án <CheckIconFilled className="h-5 w-5 ml-3" />
                         </button>
                     ) : (
-                        <button
-                            onClick={handleNextQuestion}
-                            className="flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 bg-brand-primary text-white hover:bg-brand-primary-dark shadow-xl shadow-indigo-100 hover:-translate-y-1"
-                        >
-                            {currentQuestionIndex === quizData.questions.length - 1 ? 'Hoàn thành bài tập' : 'Câu tiếp theo'}
-                            <ArrowRightCircleIcon className="h-5 w-5 ml-3" />
+                        <button onClick={handleNextQuestion} className="flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 bg-brand-primary text-white hover:bg-brand-primary-dark shadow-xl shadow-indigo-100 hover:-translate-y-1">
+                            {currentQuestionIndex === quizData.questions.length - 1 ? 'Hoàn thành bài tập' : 'Câu tiếp theo'} <ArrowRightCircleIcon className="h-5 w-5 ml-3" />
                         </button>
                     )}
                 </div>

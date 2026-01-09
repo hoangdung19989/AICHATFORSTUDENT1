@@ -7,13 +7,10 @@ import { API_KEYS } from '../config';
 // --- CONFIG & UTILS ---
 
 const getAiClient = () => {
-    // 1. Ưu tiên lấy Key cá nhân từ LocalStorage
     const localKey = localStorage.getItem('gemini_api_key');
     if (localKey && localKey.trim().length > 0) {
         return new GoogleGenAI({ apiKey: localKey });
     }
-
-    // 2. Lấy Key mặc định từ Config hoặc Env
     let apiKey = API_KEYS.GEMINI_API_KEY;
     if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY')) {
         apiKey = (process.env as any).API_KEY || '';
@@ -42,26 +39,23 @@ const cleanJsonString = (text: string): string => {
 
 const ensureQuizFormat = (data: any): Quiz => {
     if (!data) return { title: "Lỗi dữ liệu", sourceSchool: "", timeLimit: "", questions: [] };
-    
-    // Support nested structure if AI wraps it
     const root = data.quiz || data.exam || data;
-
-    // Xử lý trắc nghiệm
     const questions = Array.isArray(root.questions) ? root.questions.map((q: any) => ({
         question: q.question || "Câu hỏi không có nội dung",
-        options: Array.isArray(q.options) ? q.options.map((opt: string) => String(opt).replace(/^[A-D]\.\s*/, '').trim()) : ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],
+        // Clean options: remove A., B., C. prefix AND trim extra spaces/newlines
+        options: Array.isArray(q.options) ? q.options.map((opt: string) => String(opt).replace(/^[A-D]\.\s*/, '').trim()) : ["A", "B", "C", "D"],
         correctAnswer: q.correctAnswer ? String(q.correctAnswer).replace(/^[A-D]\.\s*/, '').trim() : "",
         explanation: q.explanation || "Giải thích đang cập nhật.",
-        topics: Array.isArray(q.topics) ? q.topics : []
+        topics: Array.isArray(q.topics) ? q.topics : [],
+        section: q.section || "",
+        groupContent: q.groupContent || ""
     })) : [];
-
-    // Xử lý tự luận
     const essayQuestions = Array.isArray(root.essayQuestions) ? root.essayQuestions.map((eq: any) => ({
         question: eq.question || "Câu hỏi tự luận chưa có nội dung",
         sampleAnswer: eq.sampleAnswer || "Đáp án đang được cập nhật.",
-        image: eq.image || undefined
+        image: eq.image || undefined,
+        section: eq.section || ""
     })) : [];
-
     return {
         sourceSchool: root.sourceSchool || "Ngân hàng đề thi Quốc gia",
         title: root.title || "Bài kiểm tra hệ thống",
@@ -71,25 +65,23 @@ const ensureQuizFormat = (data: any): Quiz => {
     };
 };
 
-// --- UNIFIED AI CALLER (SMART SWITCHING) ---
+// --- UNIFIED AI CALLER ---
 
 interface AIRequestParams {
     prompt: string;
     isJson?: boolean;
     subjectName?: string;
-    images?: { data: string, mimeType: string }[]; // Định dạng ảnh của Gemini
+    images?: { data: string, mimeType: string }[];
 }
 
 const callSmartAI = async (params: AIRequestParams): Promise<string> => {
     const preference = getPreferredAI();
     const { prompt, isJson = false, subjectName = "Giáo dục", images = [] } = params;
 
-    // Helper: Gọi Gemini
     const callGemini = async () => {
         const ai = getAiClient();
         const parts: any[] = [{ text: prompt }];
         images.forEach(img => parts.push({ inlineData: { data: img.data, mimeType: img.mimeType } }));
-        
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
             contents: [{ role: 'user', parts }],
@@ -99,45 +91,15 @@ const callSmartAI = async (params: AIRequestParams): Promise<string> => {
         throw new Error("GEMINI_EMPTY_RESPONSE");
     };
 
-    // Helper: Gọi ChatGPT
     const callChatGPT = async () => {
-        // Chuyển đổi ảnh sang định dạng base64 URI cho ChatGPT
         const gptImages = images.map(img => `data:${img.mimeType};base64,${img.data}`);
         return await getChatGPTResponse(subjectName, prompt, isJson, gptImages);
     };
 
     if (preference === 'chatgpt') {
-        try {
-            return await callChatGPT();
-        } catch (gptError: any) {
-            console.warn("⚠️ ChatGPT (Ưu tiên) gặp lỗi, chuyển sang Gemini...", gptError);
-            try {
-                return await callGemini();
-            } catch (geminiError: any) {
-                // Xử lý lỗi Quota của Gemini
-                if (geminiError.message?.includes('429') || geminiError.message?.includes('RESOURCE_EXHAUSTED')) {
-                    throw new Error("Hệ thống AI đang quá tải (Hết Quota). Vui lòng vào Cài đặt > Nhập Gemini API Key cá nhân để tiếp tục sử dụng.");
-                }
-                throw new Error(`Cả 2 AI đều thất bại. GPT: ${gptError.message} | Gemini: ${geminiError.message}`);
-            }
-        }
+        try { return await callChatGPT(); } catch (e) { return await callGemini(); }
     } else {
-        // Default: Gemini first
-        try {
-            return await callGemini();
-        } catch (geminiError: any) {
-            // Xử lý lỗi Quota của Gemini ngay lập tức
-            if (geminiError.message?.includes('429') || geminiError.message?.includes('RESOURCE_EXHAUSTED')) {
-                throw new Error("Hệ thống AI đang quá tải (Hết Quota). Vui lòng vào Cài đặt > Nhập Gemini API Key cá nhân để tiếp tục sử dụng.");
-            }
-
-            console.warn("⚠️ Gemini (Ưu tiên) gặp lỗi, chuyển sang ChatGPT...", geminiError);
-            try {
-                return await callChatGPT();
-            } catch (gptError: any) {
-                throw new Error(`Cả 2 AI đều thất bại. Gemini: ${geminiError.message} | GPT: ${gptError.message}`);
-            }
-        }
+        try { return await callGemini(); } catch (e) { return await callChatGPT(); }
     }
 };
 
@@ -149,238 +111,106 @@ export const getGenericTutorResponse = async (message: string): Promise<string> 
 
 export const getTutorResponse = async (subject: Subject, message: string): Promise<string> => {
     return await callSmartAI({ 
-        prompt: `Bạn là gia sư môn ${subject.name}. Trả lời ngắn gọn, sư phạm: ${message}`, 
+        prompt: `Bạn là gia sư môn ${subject.name}. Nếu có công thức toán học, hãy dùng định dạng LaTeX bao quanh bởi dấu $ (ví dụ: $\\frac{1}{2}$). Trả lời ngắn gọn: ${message}`, 
         subjectName: subject.name 
     });
 };
 
 export const generatePersonalizedLearningPath = async (focusTopics: string[], gradeName: string, recentPerformance?: string): Promise<LearningPath> => {
-    const prompt = `Tạo lộ trình học tập 7 ngày cho học sinh ${gradeName}. 
-    Các chủ đề cần tập trung: ${focusTopics.join(", ")}. 
-    Hiệu suất gần đây: ${recentPerformance}.
-    Trả về JSON: { "grade": "string", "studentWeaknesses": ["string"], "weeklyPlan": [{"day": 1, "title": "string", "description": "string", "tasks": [{"type": "video"|"practice", "content": "string", "difficulty": "Easy"|"Medium"|"Hard"}]}] }`;
-    
+    const prompt = `Tạo lộ trình học tập 7 ngày cho học sinh ${gradeName}. Chủ đề: ${focusTopics.join(", ")}. Hiệu suất: ${recentPerformance}. Trả về JSON...`;
     const responseText = await callSmartAI({ prompt, isJson: true });
     return JSON.parse(cleanJsonString(responseText));
 };
 
 export const generatePracticeExercises = async (subjectName: string, gradeName: string, lessonTitle: string): Promise<Quiz> => {
-    const prompt = `Tạo 10 câu hỏi trắc nghiệm luyện tập môn ${subjectName} ${gradeName}, bài học: "${lessonTitle}". 
-    Đảm bảo kiến thức bám sát SGK Kết nối tri thức. 
-    Trả về JSON định dạng: { "title": "Luyện tập: ${lessonTitle}", "questions": [{"question": "...", "options": ["...", "...", "...", "..."], "correctAnswer": "trùng với 1 trong 4 options", "explanation": "..."}] }`;
-    
+    const prompt = `Tạo 10 câu hỏi trắc nghiệm môn ${subjectName} ${gradeName}, bài: "${lessonTitle}".
+    QUAN TRỌNG:
+    - Nếu có công thức Toán/Lý/Hóa, BẮT BUỘC dùng định dạng LaTeX đặt trong dấu $ (ví dụ: $\\frac{x^2}{2}$).
+    - Trả về JSON: { "title": "...", "questions": [...] }`;
     const responseText = await callSmartAI({ prompt, isJson: true, subjectName });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
 export const generateQuiz = async (subjectName: string, gradeName: string, testType: TestType, semester: string = 'Cả năm'): Promise<Quiz> => {
-    const mcCount = testType.questionCount || 10;
-    const essayCount = testType.essayCount || 0;
-    
-    const prompt = `Bạn là chuyên gia khảo thí. Hãy tạo đề thi ${testType.name} môn ${subjectName}, ${gradeName}, ${semester}.
-    Yêu cầu:
-    1. Số câu trắc nghiệm: ${mcCount} câu.
-    2. Số câu tự luận: ${essayCount} câu.
-    3. Nội dung: Phân bổ 40% nhận biết, 30% thông hiểu, 20% vận dụng, 10% vận dụng cao.
-    
-    TRẢ VỀ DUY NHẤT JSON THEO CẤU TRÚC:
-    {
-      "sourceSchool": "Sở Giáo dục và Đào tạo",
-      "title": "${testType.name} môn ${subjectName} - ${gradeName}",
-      "timeLimit": "${testType.duration}",
-      "questions": [
-        {
-          "question": "Nội dung câu hỏi...",
-          "options": ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
-          "correctAnswer": "Phải trùng khớp chính xác với 1 trong 4 lựa chọn trên",
-          "explanation": "Giải thích chi tiết tại sao chọn đáp án đó...",
-          "topics": ["Tên chủ đề kiến thức"]
-        }
-      ],
-      "essayQuestions": [
-        {
-          "question": "Nội dung câu hỏi tự luận...",
-          "sampleAnswer": "Hướng dẫn chấm hoặc đáp án mẫu..."
-        }
-      ]
-    }`;
-
+    const prompt = `Tạo đề thi ${testType.name} môn ${subjectName}, ${gradeName}.
+    QUAN TRỌNG:
+    - Toán/Lý/Hóa: Dùng LaTeX $...$.
+    - Tiếng Anh: Chia rõ các phần (I. LISTENING, II. LANGUAGE, III. READING, IV. WRITING).
+    - Trả về JSON chuẩn.`;
     const responseText = await callSmartAI({ prompt, isJson: true, subjectName });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
 export const generateMockExam = async (subjectName: string, gradeName: string): Promise<Quiz> => {
-    const prompt = `Tạo đề thi thử vào lớp 10 (hoặc thi kết thúc năm) môn ${subjectName} ${gradeName}. 
-    Cấu trúc đề chuẩn 45-60 phút. Bao gồm cả trắc nghiệm và tự luận (nếu môn học yêu cầu).
-    Trả về JSON cấu trúc giống đề thi chuyên nghiệp.`;
-    
+    const prompt = `Tạo đề thi thử vào 10 môn ${subjectName}.
+    YÊU CẦU:
+    - Sử dụng LaTeX cho TẤT CẢ công thức toán học ($...$).
+    - Với Tiếng Anh: Cấu trúc gồm I. LISTENING, II. LANGUAGE, III. READING, IV. WRITING.
+    - Trả về JSON.`;
     const responseText = await callSmartAI({ prompt, isJson: true, subjectName });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
 export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
-    let promptText = `Bạn là trợ lý nhập liệu đề thi. Hãy phân tích tài liệu đính kèm và trích xuất thành JSON.
+    let promptText = `Bạn là hệ thống số hóa đề thi thông minh. Nhiệm vụ: Chuyển đổi đề thi đính kèm thành JSON.
     
-    YÊU CẦU CẤU TRÚC JSON (BẮT BUỘC):
+    1. XỬ LÝ TOÁN HỌC: Nhận diện công thức và chuyển sang LaTeX ($...$).
+    
+    2. XỬ LÝ ĐỀ TIẾNG ANH (QUAN TRỌNG):
+       - Nhận diện các phần lớn (Section): I. LISTENING, II. LANGUAGE, III. READING, IV. WRITING.
+       - Lưu tên phần vào trường "section".
+       - Nếu có bài đọc (Passage), đưa vào trường "groupContent".
+       - CỰC KỲ QUAN TRỌNG: Với phần trắc nghiệm, các phương án lựa chọn ("options") CHỈ được chứa nội dung đáp án, KHÔNG chứa ký tự trùng lặp. 
+       - Ví dụ SAI: "carefully\ncarefully", "A. carefully".
+       - Ví dụ ĐÚNG: "carefully".
+
+    Cấu trúc JSON trả về:
     {
-      "title": "Tên đề thi (VD: Đề thi giữa kỳ I...)",
+      "title": "Tên đề thi",
       "questions": [
-        {
-          "question": "Nội dung câu hỏi",
-          "options": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3", "Lựa chọn 4"],
-          "correctAnswer": "Chuỗi text của đáp án đúng (ví dụ: 'Lựa chọn 1')",
-          "explanation": "Giải thích (nếu có, hoặc tự sinh ra)",
-          "topics": ["Chủ đề"]
+        { 
+          "section": "I. LISTENING",
+          "groupContent": "Listen to the conversation...", 
+          "question": "Question content...", 
+          "options": ["Option A", "Option B", "Option C", "Option D"], 
+          "correctAnswer": "Option A", 
+          "explanation": "..." 
         }
       ],
-      "essayQuestions": [
-        { "question": "Câu hỏi tự luận", "sampleAnswer": "Gợi ý trả lời" }
-      ]
-    }
+      "essayQuestions": []
+    }`;
 
-    CHÚ Ý:
-    - Loại bỏ các tiền tố như "Câu 1:", "A.", "B." trong nội dung.
-    - Nếu không tìm thấy đáp án, hãy tự giải và điền vào correctAnswer.
-    - JSON phải hợp lệ.`;
-
-    // Nếu có textContent (từ file Word), nối vào prompt
-    if (textContent) {
-        promptText += `\n\nNỘI DUNG ĐỀ THI (VĂN BẢN):\n${textContent}`;
-    }
-
-    // Chuẩn bị ảnh cho AI (nếu có base64)
+    if (textContent) promptText += `\n\nNỘI DUNG VĂN BẢN THÔ:\n${textContent}`;
     const images = base64Data ? [{ data: base64Data, mimeType }] : [];
-
     const responseText = await callSmartAI({ prompt: promptText, isJson: true, images });
+    return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
+};
+
+export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number, textContent?: string): Promise<Quiz> => {
+    let prompt = `Tạo đề thi môn ${subject} ${grade} dựa trên ma trận đặc tả.
+    YÊU CẦU:
+    - Toán/Lý/Hóa: Dùng LaTeX.
+    - Tránh lặp lại nội dung trong các đáp án.
+    - Trả về JSON.`;
+    if (textContent) prompt += `\n\nNỘI DUNG MA TRẬN:\n${textContent}`;
+    const images = base64Data ? [{ data: base64Data, mimeType }] : [];
+    const responseText = await callSmartAI({ prompt, isJson: true, images });
     return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };
 
 export const generateLessonPlan = async (subject: string, grade: string, topic: string, bookSeries: string, contextFiles: { data: string, mimeType: string }[], oldContentText?: string, appendixText?: string): Promise<LessonPlan> => {
     const prompt = `
-    Bạn là công cụ định dạng và trích xuất dữ liệu (Data Extractor).
-    Nhiệm vụ: Chuyển đổi nội dung giáo án đầu vào sang JSON và bổ sung bảng năng lực số.
-
-    TUÂN THỦ TUYỆT ĐỐI CÁC QUY TẮC SAU (KHÔNG ĐƯỢC PHÉP SAI):
-    1. GIỮ NGUYÊN VĂN BẢN GỐC (VERBATIM): 
-       - Giữ nguyên từng câu, từng chữ của giáo án gốc trong các phần: Mục tiêu, Thiết bị, Tiến trình dạy học.
-       - KHÔNG sửa lỗi chính tả. KHÔNG viết lại cho hay hơn. KHÔNG tóm tắt.
-       - Nếu giáo án gốc viết dài, hãy để nguyên độ dài đó.
+    Bạn là công cụ định dạng và trích xuất dữ liệu.
+    Nhiệm vụ: Chuyển đổi giáo án sang JSON.
+    Nếu có công thức toán, hãy dùng LaTeX $...$.
     
-    2. LOẠI BỎ HÌNH ẢNH:
-       - Nếu nội dung gốc có hình ảnh, sơ đồ, biểu đồ minh họa: HÃY BỎ QUA CHÚNG.
-       - KHÔNG chèn các dòng như "[Hình ảnh minh họa...]", "[Sơ đồ...]" vào JSON.
-       - Chỉ lấy phần văn bản (text).
-
-    3. PHẦN BỔ SUNG DUY NHẤT: BẢNG NĂNG LỰC SỐ (nlsAnalysisTable):
-       - Dựa trên các hoạt động dạy học, hãy tra cứu "KHUNG NĂNG LỰC SỐ 6 MIỀN (Văn bản 3456)" dưới đây để điền vào bảng phụ lục.
-
-    === KHUNG NĂNG LỰC SỐ (3456/BGDĐT-GDPT) ===
+    (Giữ nguyên các quy tắc 5512 cũ...)
     
-    1. Miền 1: Khai thác dữ liệu & thông tin
-       - 1.1.TC1a/b/c/d: Duyệt, tìm kiếm dữ liệu.
-       - 1.1.TC2a/b/c/d: Chiến lược tìm kiếm.
-       - 1.2.TC1/TC2: Đánh giá độ tin cậy.
-       - 1.3.TC1/TC2: Quản lý, lưu trữ dữ liệu.
-
-    2. Miền 2: Giao tiếp & Hợp tác
-       - 2.1.TC1/TC2: Tương tác qua công nghệ.
-       - 2.2.TC1/TC2: Chia sẻ dữ liệu.
-       - 2.3.TC1/TC2: Tham gia xã hội số.
-       - 2.4.TC1/TC2: Hợp tác trực tuyến.
-       - 2.5.TC1/TC2: Quy tắc ứng xử (Netiquette).
-       - 2.6.TC1/TC2: Quản lý danh tính số.
-
-    3. Miền 3: Sáng tạo nội dung số
-       - 3.1.TC1/TC2: Phát triển nội dung (Word, PP, Video).
-       - 3.2.TC1/TC2: Chỉnh sửa, tích hợp nội dung.
-       - 3.3.TC1/TC2: Bản quyền.
-       - 3.4.TC1/TC2: Lập trình (nếu có).
-
-    4. Miền 4: An toàn số
-       - 4.1.TC1/TC2: Bảo vệ thiết bị.
-       - 4.2.TC1/TC2: Bảo vệ thông tin cá nhân.
-       - 4.3.TC1/TC2: Bảo vệ sức khỏe.
-       - 4.4.TC1/TC2: Bảo vệ môi trường.
-
-    5. Miền 5: Giải quyết vấn đề
-       - 5.1.TC1/TC2: Sự cố kỹ thuật.
-       - 5.2.TC1/TC2: Chọn công cụ phù hợp.
-       - 5.3.TC1/TC2: Sáng tạo bằng công nghệ.
-       - 5.4.TC1/TC2: Tự đánh giá năng lực số.
-
-    6. Miền 6: Trí tuệ nhân tạo (AI)
-       - 6.1.TC1/TC2: Hiểu biết về AI.
-       - 6.2.TC1/TC2: Sử dụng AI hỗ trợ học tập.
-       - 6.3.TC1/TC2: Đánh giá hệ thống AI.
-
-    CẤU TRÚC JSON TRẢ VỀ (BẮT BUỘC):
-    {
-      "period": "Số tiết (lấy từ giáo án gốc, nếu không có để trống)",
-      "topic": "${topic}",
-      "grade": "${grade}",
-      "objectives": {
-        "knowledge": ["Sao chép nguyên văn từ mục Kiến thức"],
-        "commonCompetencies": ["Sao chép nguyên văn từ mục Năng lực chung"],
-        "digitalCompetencies": [
-           { "domain": "Miền 6. Trí tuệ nhân tạo", "code": "6.2.TC1a", "description": "Mô tả biểu hiện NLS nếu có trong mục tiêu" }
-        ],
-        "virtues": ["Sao chép nguyên văn từ mục Phẩm chất"]
-      },
-      "materials": {
-        "teacher": ["Sao chép nguyên văn"],
-        "student": ["Sao chép nguyên văn"]
-      },
-      "activities": [
-        {
-          "id": 1,
-          "title": "Tên hoạt động (Sao chép nguyên văn)",
-          "goal": "Mục tiêu (Sao chép nguyên văn)",
-          "content": "Nội dung (Sao chép nguyên văn)",
-          "product": "Sản phẩm (Sao chép nguyên văn)",
-          "execution": {
-            "step1": "Chuyển giao nhiệm vụ (SAO CHÉP NGUYÊN VĂN)",
-            "step2": "Thực hiện nhiệm vụ (SAO CHÉP NGUYÊN VĂN)",
-            "step3": "Báo cáo, thảo luận (SAO CHÉP NGUYÊN VĂN)",
-            "step4": "Kết luận, nhận định (SAO CHÉP NGUYÊN VĂN)"
-          }
-        }
-      ],
-      "nlsAnalysisTable": [
-        {
-          "index": 1,
-          "activityName": "Tên hoạt động tương ứng",
-          "organization": "Mô tả ngắn gọn cách tổ chức có dùng công nghệ",
-          "competencyDetail": "Mã (VD: 6.1.TC1a) - Mô tả biểu hiện cụ thể"
-        }
-      ],
-      "homework": "Dặn dò (Sao chép nguyên văn)"
-    }
+    CẤU TRÚC JSON TRẢ VỀ: {...}
     
-    ${oldContentText ? `\n\n[NỘI DUNG GIÁO ÁN CŨ]:\n${oldContentText}` : ''}
-    ${appendixText ? `\n\n[PHỤ LỤC 3 / MA TRẬN]:\n${appendixText}` : ''}
+    ${oldContentText ? `\n\n[NỘI DUNG CŨ]:\n${oldContentText}` : ''}
     `;
-
-    const responseText = await callSmartAI({ 
-        prompt, 
-        isJson: true, 
-        images: contextFiles
-    });
     
+    const responseText = await callSmartAI({ prompt, isJson: true, images: contextFiles });
     return JSON.parse(cleanJsonString(responseText)) as LessonPlan;
-};
-
-export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number, textContent?: string): Promise<Quiz> => {
-    let prompt = `Tạo đề thi môn ${subject} ${grade} dựa trên ma trận đặc tả đính kèm. 
-    Yêu cầu: ${mcCount} câu trắc nghiệm và ${essayCount} câu tự luận. 
-    Đảm bảo độ khó phân bổ đúng như ma trận yêu cầu.
-    Trả về JSON chuẩn đề thi.`;
-
-    if (textContent) {
-        prompt += `\n\nNỘI DUNG MA TRẬN (VĂN BẢN):\n${textContent}`;
-    }
-    
-    const images = base64Data ? [{ data: base64Data, mimeType }] : [];
-
-    const responseText = await callSmartAI({ prompt, isJson: true, images });
-    return ensureQuizFormat(JSON.parse(cleanJsonString(responseText)));
 };

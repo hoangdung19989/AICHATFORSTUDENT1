@@ -50,12 +50,15 @@ export interface QuizQuestion {
   explanation: string;
   topics?: string[];
   image?: string; // Base64 string for question illustration
+  section?: string; // e.g., "I. LISTENING", "III. READING"
+  groupContent?: string; // Nội dung dùng chung (đoạn văn đọc hiểu, transcript bài nghe)
 }
 
 export interface EssayQuestion {
   question: string;
   sampleAnswer: string;
   image?: string; // Base64 string for question illustration
+  section?: string;
 }
 
 export interface Quiz {
