@@ -27,8 +27,6 @@ export const SUBJECTS: Subject[] = [
 
 export const LECTURE_SUBJECTS: LectureSubject[] = [
   { id: 'lecture-math', name: 'Toán', icon: CalculatorIcon, description: 'Video bài giảng Đại số và Hình học trực quan, dễ hiểu.', tags: ['Lớp 6-9', 'Bám sát SGK', 'Video 4K'], color: 'bg-blue-500' },
-  { id: 'lecture-literature', name: 'Ngữ văn', icon: DocumentTextIcon, description: 'Phân tích tác phẩm văn học và rèn luyện kỹ năng Tiếng Việt.', tags: ['Soạn văn', 'Văn mẫu', 'Lớp 6-9'], color: 'bg-amber-500' },
-  { id: 'lecture-english', name: 'Tiếng Anh', icon: TowerIcon, description: 'Học từ vựng, ngữ pháp và phát âm chuẩn bản xứ.', tags: ['Global Success', 'Nghe - Nói', 'Ngữ pháp'], color: 'bg-rose-500' },
   { id: 'lecture-history-geo', name: 'Lịch sử và Địa lí', icon: HistoryIcon, description: 'Khám phá các sự kiện lịch sử và đặc điểm địa lí Việt Nam & Thế giới.', tags: ['Lớp 6-9', 'Bản đồ số', 'Dòng thời gian'], color: 'bg-orange-500' },
 ];
 

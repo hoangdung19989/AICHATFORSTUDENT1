@@ -14,7 +14,7 @@ import {
     XMarkIcon, 
     ClockIcon, 
     ChartBarIcon, 
-    ArrowPathIcon,
+    ArrowPathIcon, 
     TrashIcon,
     PlusIcon,
     ArrowRightIcon,
@@ -42,7 +42,16 @@ const ExamManager: React.FC = () => {
     const [title, setTitle] = useState('');
     const [subject, setSubject] = useState(ALL_SUBJECTS[0]);
     const [grade, setGrade] = useState(ALL_GRADES[0]);
-    const [deadline, setDeadline] = useState('');
+    
+    // Default deadline: 7 days from now
+    const getDefaultDeadline = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 7);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
+    };
+    const [deadline, setDeadline] = useState(getDefaultDeadline());
+    
     const [externalLink, setExternalLink] = useState('');
     const [uploadedFile, setUploadedFile] = useState<{ file: File, base64?: string, text?: string } | null>(null);
     
@@ -57,22 +66,38 @@ const ExamManager: React.FC = () => {
     const [generatedVariants, setGeneratedVariants] = useState<ExamVariant[]>([]);
     const [activeVariantIndex, setActiveVariantIndex] = useState(0);
 
-    useEffect(() => { if (viewMode === 'list') fetchMyExams(); }, [viewMode]);
+    useEffect(() => { 
+        if (viewMode === 'list' && user) {
+            fetchMyExams(); 
+        }
+    }, [viewMode, user]);
 
     const fetchMyExams = async () => {
         if (!user) return;
         setIsLoading(true);
+        
+        const safetyTimer = setTimeout(() => setIsLoading(false), 10000);
+
         try {
             const { data, error } = await supabase.from('teacher_exams')
                 .select('*, exam_results(count)')
                 .eq('teacher_id', user.id)
                 .order('created_at', { ascending: false });
             
-            if (error) throw error;
-            setMyExams(data || []);
+            if (error) {
+                // Fallback: Query đơn giản
+                const { data: simpleData } = await supabase.from('teacher_exams')
+                    .select('*')
+                    .eq('teacher_id', user.id)
+                    .order('created_at', { ascending: false });
+                setMyExams(simpleData || []);
+            } else {
+                setMyExams(data || []);
+            }
         } catch (err: any) {
-            console.warn("Lỗi tải đề thi:", err);
+            console.error("Lỗi hệ thống:", err);
         } finally {
+            clearTimeout(safetyTimer);
             setIsLoading(false);
         }
     };
@@ -82,22 +107,20 @@ const ExamManager: React.FC = () => {
         if (!file) return;
 
         if (file.name.endsWith('.docx')) {
+            setIsLoading(true); 
             try {
                 // @ts-ignore
-                const mammoth = await import('https://esm.sh/mammoth');
-                const reader = new FileReader();
-                reader.onload = async (ev) => {
-                    const arrayBuffer = ev.target?.result as ArrayBuffer;
-                    try {
-                        const conv = await mammoth.extractRawText({ arrayBuffer });
-                        setUploadedFile({ file, text: conv.value });
-                    } catch (e) { 
-                        alert("Không thể đọc nội dung file Word này."); 
-                        setUploadedFile(null);
-                    }
-                };
-                reader.readAsArrayBuffer(file);
-            } catch (e) { alert("Lỗi nạp thư viện đọc Word."); }
+                const { default: mammoth } = await import('https://esm.sh/mammoth');
+                const arrayBuffer = await file.arrayBuffer();
+                const conv = await mammoth.extractRawText({ arrayBuffer });
+                setUploadedFile({ file, text: conv.value });
+            } catch (e) { 
+                console.error(e);
+                alert("Không thể đọc file Word. Hãy thử chuyển sang PDF."); 
+                setUploadedFile(null);
+            } finally {
+                setIsLoading(false);
+            }
         } else {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -119,7 +142,18 @@ const ExamManager: React.FC = () => {
             const parsedQuiz = await parseExamDocument(base64, uploadedFile.file.type, uploadedFile.text);
             
             if (!parsedQuiz.questions || parsedQuiz.questions.length === 0) {
-                throw new Error("AI không tìm thấy câu hỏi trắc nghiệm nào.");
+                if (window.confirm("AI không tìm thấy câu hỏi trắc nghiệm nào rõ ràng. Bạn có muốn tự nhập thủ công không?")) {
+                    setQuestions([{
+                        question: "Câu hỏi 1...",
+                        options: ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
+                        correctAnswer: "Đáp án A",
+                        explanation: ""
+                    }]);
+                    setStep(2);
+                    return;
+                } else {
+                    throw new Error("Không tìm thấy dữ liệu câu hỏi.");
+                }
             }
             
             setQuestions(parsedQuiz.questions);
@@ -155,7 +189,13 @@ const ExamManager: React.FC = () => {
         if (!user) return;
         setIsLoading(true);
         try {
-            const finalVariants = (step === 3 && generatedVariants.length > 0) ? generatedVariants : [{ code: 'GỐC', questions: questions }];
+            // FIX: Luôn đảm bảo có variant, kể cả khi không trộn đề
+            let finalVariants = generatedVariants;
+            if (step === 3 && generatedVariants.length > 0) {
+                finalVariants = generatedVariants;
+            } else {
+                finalVariants = [{ code: 'GỐC', questions: questions }];
+            }
             
             const rawData = {
                 questions: questions, 
@@ -177,19 +217,17 @@ const ExamManager: React.FC = () => {
                 status: 'published'
             });
 
-            if (error) {
-                // Kiểm tra nếu lỗi do thiếu cột deadline
-                if (error.message.includes('column "deadline" of relation "teacher_exams" does not exist')) {
-                    throw new Error("Cơ sở dữ liệu thiếu cột 'deadline'. Vui lòng báo cho Quản trị viên chạy lệnh SQL bổ sung cột.");
-                }
-                throw error;
-            }
+            if (error) throw error;
             
-            alert("ĐÃ ĐẨY BÀI THI THÀNH CÔNG!");
+            alert("ĐÃ GIAO ĐỀ THÀNH CÔNG! Học sinh có thể vào làm bài ngay.");
+            // Reset state
             setViewMode('list'); 
             setStep(1); 
-            setTitle(''); setDeadline(''); setExternalLink('');
+            setTitle(''); 
+            setDeadline(getDefaultDeadline()); 
+            setExternalLink('');
             setQuestions([]); setEssayQuestions([]); setUploadedFile(null); setGeneratedVariants([]);
+            
             fetchMyExams();
         } catch (err: any) {
             alert(`LỖI LƯU TRỮ: ${err.message}`);
@@ -215,7 +253,7 @@ const ExamManager: React.FC = () => {
         setQuestions(newQs);
     };
 
-    if (isLoading) return <LoadingSpinner text="Đang xử lý..." subText="Hệ thống đang kết nối AI và lưu trữ dữ liệu..." />;
+    if (isLoading) return <LoadingSpinner text="Đang xử lý..." subText="Vui lòng đợi trong giây lát..." />;
 
     return (
         <div className="container mx-auto max-w-5xl pb-20 animate-scale-in">
@@ -242,6 +280,7 @@ const ExamManager: React.FC = () => {
                             myExams.map(exam => {
                                 const deadlineDate = exam.deadline ? new Date(exam.deadline) : null;
                                 const isExpired = deadlineDate && deadlineDate < new Date();
+                                const submissionCount = exam.exam_results?.[0]?.count || 0;
                                 
                                 return (
                                     <div key={exam.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -261,7 +300,7 @@ const ExamManager: React.FC = () => {
                                         </div>
                                         <div className="mt-4 md:mt-0 flex items-center gap-6">
                                             <div className="text-right">
-                                                <span className="block text-2xl font-black text-slate-800 leading-none">{exam.exam_results?.[0]?.count || 0}</span>
+                                                <span className="block text-2xl font-black text-slate-800 leading-none">{submissionCount}</span>
                                                 <span className="text-[10px] text-slate-400 uppercase font-black">Bài nộp</span>
                                             </div>
                                             <div className="flex gap-2">

@@ -27,18 +27,35 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
     const fetchExams = async () => {
         setIsLoading(true);
         try {
+            // FIX: Lấy TOÀN BỘ bài thi đã public, sau đó lọc mềm bằng JS để tránh lỗi "Toán" != "Toán học"
+            // Việc lọc cứng bằng .eq() của Supabase rất dễ lỗi do tên không khớp tuyệt đối
             const { data, error } = await supabase
                 .from('teacher_exams')
                 .select(`
                     *,
                     exam_results(id, user_id)
                 `)
-                .eq('subject', subject.name)
-                .eq('grade', grade.name)
                 .eq('status', 'published')
                 .order('created_at', { ascending: false });
             
-            if (!error && data) setExams(data);
+            if (error) throw error;
+
+            if (data) {
+                // Fuzzy matching: Kiểm tra xem tên môn học có chứa từ khóa không
+                // Ví dụ: "Toán học" sẽ khớp với "Toán"
+                const filtered = data.filter(exam => {
+                    const examSub = exam.subject?.toLowerCase() || "";
+                    const targetSub = subject.name.toLowerCase();
+                    const matchSubject = examSub.includes(targetSub) || targetSub.includes(examSub);
+
+                    const examGrade = exam.grade?.toLowerCase() || "";
+                    const targetGrade = grade.name.toLowerCase();
+                    const matchGrade = examGrade.includes(targetGrade) || targetGrade.includes(examGrade);
+
+                    return matchSubject && matchGrade;
+                });
+                setExams(filtered);
+            }
         } catch (e) {
             console.error("Fetch error:", e);
         } finally {
@@ -57,18 +74,28 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
         const isDone = !!userResult;
 
         if (isDone) {
-            if (!window.confirm("Bạn đã nộp bài này. Bạn có muốn làm lại để cải thiện điểm số?")) return;
+            if (!window.confirm("Bạn đã nộp bài này. Bạn có muốn làm lại để cải thiện điểm số? (Điểm mới sẽ được cập nhật)")) return;
         }
 
         const dbContent: any = exam.questions;
-        let finalQuestions = dbContent.questions || [];
+        let finalQuestions = [];
         let examTitle = exam.title;
 
+        // FIX: Logic chọn đề thông minh hơn
+        // 1. Nếu có variants (mã đề), chọn ngẫu nhiên 1 mã
+        // 2. Nếu không có variants, dùng trực tiếp questions gốc
         if (dbContent.variants && Array.isArray(dbContent.variants) && dbContent.variants.length > 0) {
             const randomIndex = Math.floor(Math.random() * dbContent.variants.length);
             const selectedVariant = dbContent.variants[randomIndex];
             finalQuestions = selectedVariant.questions || []; 
             examTitle = `${exam.title} (Mã đề: ${selectedVariant.code})`;
+        } else if (dbContent.questions && Array.isArray(dbContent.questions)) {
+            finalQuestions = dbContent.questions;
+        }
+
+        if (finalQuestions.length === 0) {
+            alert("Đề thi này chưa có câu hỏi nào. Vui lòng báo với giáo viên.");
+            return;
         }
 
         onSelectExam({
@@ -76,7 +103,8 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
             title: examTitle,
             timeLimit: "45 phút",
             questions: finalQuestions,
-            essayQuestions: dbContent.essayQuestions || []
+            essayQuestions: dbContent.essayQuestions || [],
+            externalLink: exam.questions.externalLink 
         }, exam.id);
     };
 
@@ -95,7 +123,7 @@ const ExamList: React.FC<ExamListProps> = ({ subject, grade, onSelectExam, onGen
                     
                     {exams.length === 0 ? (
                         <div className="bg-white p-12 rounded-3xl border-2 border-dashed border-slate-200 text-center">
-                            <p className="text-slate-400">Hiện tại thầy cô chưa đẩy đề thi nào cho mục này.</p>
+                            <p className="text-slate-400">Hiện tại thầy cô chưa đẩy đề thi nào cho lớp này.</p>
                         </div>
                     ) : (
                         <div className="space-y-4">

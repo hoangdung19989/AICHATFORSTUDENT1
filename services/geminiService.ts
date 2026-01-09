@@ -43,26 +43,29 @@ const cleanJsonString = (text: string): string => {
 const ensureQuizFormat = (data: any): Quiz => {
     if (!data) return { title: "Lỗi dữ liệu", sourceSchool: "", timeLimit: "", questions: [] };
     
+    // Support nested structure if AI wraps it
+    const root = data.quiz || data.exam || data;
+
     // Xử lý trắc nghiệm
-    const questions = Array.isArray(data.questions) ? data.questions.map((q: any) => ({
+    const questions = Array.isArray(root.questions) ? root.questions.map((q: any) => ({
         question: q.question || "Câu hỏi không có nội dung",
-        options: Array.isArray(q.options) ? q.options.map((opt: string) => opt.replace(/^[A-D]\.\s*/, '')) : ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],
-        correctAnswer: q.correctAnswer || "",
+        options: Array.isArray(q.options) ? q.options.map((opt: string) => String(opt).replace(/^[A-D]\.\s*/, '').trim()) : ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],
+        correctAnswer: q.correctAnswer ? String(q.correctAnswer).replace(/^[A-D]\.\s*/, '').trim() : "",
         explanation: q.explanation || "Giải thích đang cập nhật.",
         topics: Array.isArray(q.topics) ? q.topics : []
     })) : [];
 
     // Xử lý tự luận
-    const essayQuestions = Array.isArray(data.essayQuestions) ? data.essayQuestions.map((eq: any) => ({
+    const essayQuestions = Array.isArray(root.essayQuestions) ? root.essayQuestions.map((eq: any) => ({
         question: eq.question || "Câu hỏi tự luận chưa có nội dung",
         sampleAnswer: eq.sampleAnswer || "Đáp án đang được cập nhật.",
         image: eq.image || undefined
     })) : [];
 
     return {
-        sourceSchool: data.sourceSchool || "Ngân hàng đề thi Quốc gia",
-        title: data.title || "Bài kiểm tra hệ thống",
-        timeLimit: data.timeLimit || "45 phút",
+        sourceSchool: root.sourceSchool || "Ngân hàng đề thi Quốc gia",
+        title: root.title || "Bài kiểm tra hệ thống",
+        timeLimit: root.timeLimit || "45 phút",
         questions: questions,
         essayQuestions: essayQuestions
     };
@@ -216,11 +219,29 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
 };
 
 export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
-    let promptText = `Hãy phân tích tài liệu đề thi đính kèm (ảnh hoặc văn bản) và trích xuất sang định dạng JSON chuẩn để học sinh làm bài online.
-    Yêu cầu:
-    - Trích xuất tất cả câu hỏi trắc nghiệm (đủ câu hỏi, 4 lựa chọn, đáp án đúng, giải thích).
-    - Trích xuất các câu hỏi tự luận (nếu có).
-    - Chỉ trả về JSON.`;
+    let promptText = `Bạn là trợ lý nhập liệu đề thi. Hãy phân tích tài liệu đính kèm và trích xuất thành JSON.
+    
+    YÊU CẦU CẤU TRÚC JSON (BẮT BUỘC):
+    {
+      "title": "Tên đề thi (VD: Đề thi giữa kỳ I...)",
+      "questions": [
+        {
+          "question": "Nội dung câu hỏi",
+          "options": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3", "Lựa chọn 4"],
+          "correctAnswer": "Chuỗi text của đáp án đúng (ví dụ: 'Lựa chọn 1')",
+          "explanation": "Giải thích (nếu có, hoặc tự sinh ra)",
+          "topics": ["Chủ đề"]
+        }
+      ],
+      "essayQuestions": [
+        { "question": "Câu hỏi tự luận", "sampleAnswer": "Gợi ý trả lời" }
+      ]
+    }
+
+    CHÚ Ý:
+    - Loại bỏ các tiền tố như "Câu 1:", "A.", "B." trong nội dung.
+    - Nếu không tìm thấy đáp án, hãy tự giải và điền vào correctAnswer.
+    - JSON phải hợp lệ.`;
 
     // Nếu có textContent (từ file Word), nối vào prompt
     if (textContent) {
