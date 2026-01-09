@@ -16,13 +16,17 @@ interface UseQuizReturn {
     currentQuestionIndex: number;
     score: number;
     selectedAnswer: string | null;
+    userAnswers: Record<number, string>;
     isAnswered: boolean;
     isQuizFinished: boolean;
     timeLeft: number;
     isTimerRunning: boolean;
     progress: number;
     handleAnswerSelect: (option: string) => void;
+    submitAnswer: () => void;
+    submitExam: () => void;
     handleNextQuestion: () => void;
+    handlePreviousQuestion: () => void;
     formatTime: (seconds: number) => string;
 }
 
@@ -31,14 +35,13 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [score, setScore] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+    const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
     const [isAnswered, setIsAnswered] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const [questionStartTime, setQuestionStartTime] = useState(Date.now());
     
-    // Sử dụng ref để đảm bảo onQuizFinish chỉ được gọi duy nhất 1 lần
     const hasFinishedRef = useRef(false);
-
     const questions = quizData?.questions || [];
 
     useEffect(() => {
@@ -46,6 +49,7 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
             setCurrentQuestionIndex(0);
             setScore(0);
             setSelectedAnswer(null);
+            setUserAnswers({});
             setIsAnswered(false);
             hasFinishedRef.current = false;
             
@@ -57,6 +61,7 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
         }
     }, [quizData]);
 
+    // Timer logic
     useEffect(() => {
         let timer: ReturnType<typeof setInterval>;
         if (isTimerRunning && timeLeft > 0) {
@@ -65,32 +70,34 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
             }, 1000);
         } else if (timeLeft === 0 && isTimerRunning) {
             setIsTimerRunning(false);
-            // Khi hết giờ, bài thi tự kết thúc
-            if (!hasFinishedRef.current && onQuizFinish) {
-                hasFinishedRef.current = true;
-                onQuizFinish(score, questions.length);
-            }
+            submitExam(); // Auto submit when time is up
         }
         return () => clearInterval(timer);
-    }, [isTimerRunning, timeLeft, score, questions.length, onQuizFinish]);
+    }, [isTimerRunning, timeLeft]);
     
     const isQuizFinished = quizData ? currentQuestionIndex >= questions.length : false;
 
-    // Chỉ kích hoạt khi người dùng nhấn "Tiếp tục" ở câu cuối cùng
-    useEffect(() => {
-        if (isQuizFinished && !hasFinishedRef.current && onQuizFinish && quizData) {
-            hasFinishedRef.current = true;
-            onQuizFinish(score, questions.length);
-        }
-    }, [isQuizFinished, onQuizFinish, score, quizData, questions.length]);
+    // Hàm chọn đáp án (Chung cho cả 2 chế độ)
+    const handleAnswerSelect = useCallback((option: string) => {
+        // Trong chế độ Practice, nếu đã chốt (isAnswered) thì không cho chọn lại
+        // Trong chế độ Exam, isAnswered thường là false cho đến khi nộp bài
+        if (isAnswered) return; 
+        
+        setSelectedAnswer(option);
+        setUserAnswers(prev => ({
+            ...prev,
+            [currentQuestionIndex]: option
+        }));
+    }, [isAnswered, currentQuestionIndex]);
 
-    const handleAnswerSelect = useCallback(async (option: string) => {
-        if (isAnswered || !isTimerRunning || !questions[currentQuestionIndex]) return;
+    // Hàm chốt đáp án từng câu (Dành cho Luyện tập/PracticeView)
+    const submitAnswer = useCallback(async () => {
+        if (isAnswered || !selectedAnswer || !questions[currentQuestionIndex]) return;
 
         setIsAnswered(true);
-        setSelectedAnswer(option);
+        const currentQ = questions[currentQuestionIndex];
+        const isCorrect = selectedAnswer === currentQ.correctAnswer;
 
-        const isCorrect = option === questions[currentQuestionIndex].correctAnswer;
         if (isCorrect) {
             setScore(s => s + 1);
             playAudioFromBase64(CORRECT_ANSWER_SOUND);
@@ -98,28 +105,61 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
             playAudioFromBase64(INCORRECT_ANSWER_SOUND);
         }
 
+        // Log question attempt immediately for practice mode
         if (user) {
             const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
             try {
                 await supabase.from('question_attempts').insert({
                     user_id: user.id,
-                    question_text: questions[currentQuestionIndex].question,
+                    question_text: currentQ.question,
                     is_correct: isCorrect,
                     time_taken_seconds: timeTaken,
-                    question_topics: questions[currentQuestionIndex].topics || [],
+                    question_topics: currentQ.topics || [],
                 });
             } catch (err) {
                 console.error("Exception logging question:", err);
             }
         }
-    }, [isAnswered, isTimerRunning, currentQuestionIndex, questions, user, questionStartTime]);
+    }, [isAnswered, selectedAnswer, questions, currentQuestionIndex, user, questionStartTime]);
+
+    // Hàm nộp bài tổng thể (Dành cho Thi/ExamView)
+    const submitExam = useCallback(() => {
+        if (hasFinishedRef.current) return;
+        hasFinishedRef.current = true;
+        setIsTimerRunning(false);
+
+        let finalScore = 0;
+        questions.forEach((q, idx) => {
+            if (userAnswers[idx] === q.correctAnswer) {
+                finalScore++;
+            }
+        });
+        setScore(finalScore);
+
+        if (onQuizFinish) {
+            onQuizFinish(finalScore, questions.length);
+        }
+    }, [questions, userAnswers, onQuizFinish]);
 
     const handleNextQuestion = useCallback(() => {
-        setIsAnswered(false);
-        setSelectedAnswer(null);
-        setCurrentQuestionIndex(prev => prev + 1);
-        setQuestionStartTime(Date.now());
-    }, []);
+        if (currentQuestionIndex < questions.length - 1) {
+            const nextIdx = currentQuestionIndex + 1;
+            setCurrentQuestionIndex(nextIdx);
+            setSelectedAnswer(userAnswers[nextIdx] || null);
+            setIsAnswered(false); // Reset check state for practice mode
+            setQuestionStartTime(Date.now());
+        }
+    }, [currentQuestionIndex, questions.length, userAnswers]);
+
+    const handlePreviousQuestion = useCallback(() => {
+        if (currentQuestionIndex > 0) {
+            const prevIdx = currentQuestionIndex - 1;
+            setCurrentQuestionIndex(prevIdx);
+            setSelectedAnswer(userAnswers[prevIdx] || null);
+            setIsAnswered(false); 
+            setQuestionStartTime(Date.now());
+        }
+    }, [currentQuestionIndex, userAnswers]);
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -127,20 +167,24 @@ export const useQuiz = ({ quizData, onQuizFinish }: UseQuizOptions): UseQuizRetu
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
-    const progress = (quizData && questions.length > 0) ? (Math.min(currentQuestionIndex + 1, questions.length) / questions.length) * 100 : 0;
+    const progress = (quizData && questions.length > 0) ? ((Object.keys(userAnswers).length) / questions.length) * 100 : 0;
 
     return {
         currentQuestion: questions[currentQuestionIndex] || null,
         currentQuestionIndex,
         score,
         selectedAnswer,
+        userAnswers,
         isAnswered,
         isQuizFinished,
         timeLeft,
         isTimerRunning,
         progress,
         handleAnswerSelect,
+        submitAnswer,
+        submitExam,
         handleNextQuestion,
+        handlePreviousQuestion,
         formatTime,
     };
 };

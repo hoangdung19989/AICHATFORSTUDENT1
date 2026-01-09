@@ -3,12 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../services/supabaseClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useQuiz } from '../../../hooks/useQuiz';
-// FIX: Corrected import path for types
 import type { Quiz, SelfPracticeSubject, TestGrade, PracticeLesson } from '../../../types/index';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from '../../tests/components/TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
-import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon } from '../../../components/icons';
+import { ArrowRightCircleIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, CheckCircleIcon as CheckIconFilled } from '../../../components/icons';
 
 interface PracticeViewProps {
     subject: SelfPracticeSubject;
@@ -34,7 +33,6 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         setShowResults(true);
         if (user) {
             try {
-                // Lấy tên học sinh để lưu vào metadata (Fix lỗi ẩn danh)
                 const studentName = 
                     user.user_metadata?.full_name || 
                     profile?.full_name || 
@@ -49,14 +47,12 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     total_questions: total,
                     exam_type: 'practice',
                     metadata: {
-                        student_name: studentName, // QUAN TRỌNG
+                        student_name: studentName,
                         student_email: user.email,
                         lesson_title: lesson.title
                     }
                 });
-                if (error) {
-                    console.error("Failed to save practice result:", error.message);
-                }
+                if (error) console.error("Failed to save practice result:", error.message);
             } catch (err) {
                  console.error("Exception saving practice result:", err);
             }
@@ -65,7 +61,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
     
     const {
         currentQuestion, currentQuestionIndex, selectedAnswer, isAnswered, 
-        isQuizFinished, handleAnswerSelect, handleNextQuestion, score
+        isQuizFinished, handleAnswerSelect, submitAnswer, handleNextQuestion, score
     } = useQuiz({ quizData, onQuizFinish: handleQuizFinish });
 
     useEffect(() => {
@@ -81,7 +77,6 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         onRetry();
     };
 
-    // Helper to remove prefixes like "A. ", "B. ", "1. " from options if the AI generated them
     const cleanOptionText = (text: string) => {
         return text.replace(/^[A-D]\.\s*/, '').replace(/^\d+\.\s*/, '');
     };
@@ -103,7 +98,6 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
         );
     }
     
-    // Xử lý trường hợp có dữ liệu nhưng mảng câu hỏi rỗng
     const hasNoQuestions = !isLoading && quizData && quizData.questions.length === 0;
 
     if (error || hasNoQuestions) {
@@ -125,18 +119,8 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                         {error || "Hệ thống AI không thể tạo câu hỏi cho bài học này ngay bây giờ. Điều này có thể do máy chủ đang bận."}
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <button 
-                            onClick={onRetry} 
-                            className="bg-brand-primary text-white font-black px-8 py-4 rounded-2xl hover:bg-brand-primary-dark shadow-lg shadow-indigo-100 transition-all active:scale-95"
-                        >
-                            THỬ LẠI LẦN NỮA
-                        </button>
-                        <button 
-                            onClick={onBack} 
-                            className="bg-slate-100 text-slate-600 font-black px-8 py-4 rounded-2xl hover:bg-slate-200 transition-all"
-                        >
-                            CHỌN BÀI KHÁC
-                        </button>
+                        <button onClick={onRetry} className="bg-brand-primary text-white font-black px-8 py-4 rounded-2xl hover:bg-brand-primary-dark shadow-lg shadow-indigo-100 transition-all active:scale-95">THỬ LẠI LẦN NỮA</button>
+                        <button onClick={onBack} className="bg-slate-100 text-slate-600 font-black px-8 py-4 rounded-2xl hover:bg-slate-200 transition-all">CHỌN BÀI KHÁC</button>
                     </div>
                 </div>
             </div>
@@ -148,7 +132,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
     }
 
     if (!quizData || !currentQuestion) {
-        return null; // Đang chuyển trạng thái
+        return null;
     }
     
     const progressPercent = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
@@ -164,9 +148,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                 { label: 'Luyện tập' }
             ]} />
 
-            {/* Main Quiz Card */}
             <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden relative">
-                {/* Header Section */}
                 <div className="px-8 pt-8 pb-4 bg-slate-50/50">
                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">
                         <span className="bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">{quizData.sourceSchool || subject.name}</span>
@@ -175,7 +157,6 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
 
                     <h1 className="text-lg font-bold text-slate-700 mb-6 text-center">{lesson.title}</h1>
 
-                    {/* Progress Bar */}
                     <div className="relative h-3 w-full bg-slate-200 rounded-full overflow-hidden mb-2 shadow-inner">
                         <div 
                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-brand-primary to-indigo-400 transition-all duration-700 ease-out rounded-full" 
@@ -193,23 +174,15 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     </div>
                 </div>
 
-                {/* Content Section */}
                 <div className="p-8 sm:p-12">
-                    {/* Illustration */}
                     {currentQuestion.image && (
                         <div className="mb-10 flex justify-center">
-                            <img 
-                                src={currentQuestion.image} 
-                                alt="Hình minh họa" 
-                                className="max-h-64 object-contain rounded-3xl border-4 border-slate-50 shadow-lg"
-                            />
+                            <img src={currentQuestion.image} alt="Hình minh họa" className="max-h-64 object-contain rounded-3xl border-4 border-slate-50 shadow-lg" />
                         </div>
                     )}
 
                     <div className="mb-10">
-                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 leading-snug">
-                            {currentQuestion.question}
-                        </h2>
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 leading-snug">{currentQuestion.question}</h2>
                     </div>
 
                     <div className="space-y-4">
@@ -237,6 +210,13 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                                     textClass = 'text-slate-400';
                                     labelClass = 'bg-slate-50 text-slate-200';
                                 }
+                            } else {
+                                // Trạng thái chưa nộp nhưng ĐANG CHỌN
+                                if (isSelected) {
+                                    buttonClass = 'bg-indigo-50 border-brand-primary ring-2 ring-indigo-100';
+                                    textClass = 'text-brand-primary font-bold';
+                                    labelClass = 'bg-brand-primary text-white';
+                                }
                             }
 
                             return (
@@ -244,7 +224,7 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                                     key={index}
                                     onClick={() => handleAnswerSelect(option)}
                                     disabled={isAnswered}
-                                    className={`w-full text-left flex items-center p-5 rounded-2xl border-2 transition-all duration-300 group ${buttonClass}`}
+                                    className={`w-full text-left flex items-center p-5 rounded-2xl border-2 transition-all duration-200 group ${buttonClass}`}
                                 >
                                     <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black mr-4 flex-shrink-0 transition-colors ${labelClass}`}>
                                         {optionLabel}
@@ -279,20 +259,29 @@ const PracticeView: React.FC<PracticeViewProps> = (props) => {
                     )}
                 </div>
 
-                {/* Footer Section */}
                 <div className="px-8 py-6 bg-slate-50/80 border-t border-slate-100 flex justify-end items-center gap-6">
-                    <button
-                        onClick={handleNextQuestion}
-                        disabled={!isAnswered}
-                        className={`flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 ${
-                            !isAnswered 
-                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                            : 'bg-brand-primary text-white hover:bg-brand-primary-dark shadow-xl shadow-indigo-100 hover:-translate-y-1 active:translate-y-0'
-                        }`}
-                    >
-                        {currentQuestionIndex === quizData.questions.length - 1 ? 'Hoàn thành bài tập' : 'Câu tiếp theo'}
-                        <ArrowRightCircleIcon className="h-5 w-5 ml-3" />
-                    </button>
+                    {!isAnswered ? (
+                        <button
+                            onClick={submitAnswer}
+                            disabled={!selectedAnswer}
+                            className={`flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 ${
+                                !selectedAnswer 
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 hover:-translate-y-1'
+                            }`}
+                        >
+                            Kiểm tra đáp án
+                            <CheckIconFilled className="h-5 w-5 ml-3" />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleNextQuestion}
+                            className="flex items-center px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 bg-brand-primary text-white hover:bg-brand-primary-dark shadow-xl shadow-indigo-100 hover:-translate-y-1"
+                        >
+                            {currentQuestionIndex === quizData.questions.length - 1 ? 'Hoàn thành bài tập' : 'Câu tiếp theo'}
+                            <ArrowRightCircleIcon className="h-5 w-5 ml-3" />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
