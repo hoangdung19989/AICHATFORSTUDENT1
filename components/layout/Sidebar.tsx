@@ -102,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAboutModal }) 
               </div>
               <div>
                 <span className="block text-lg font-display font-bold text-slate-800 leading-none">OnLuyen</span>
-                <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">AI Tutor</span>
+                <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">v2.1.1</span>
               </div>
             </div>
             <button onClick={onClose} className="md:hidden p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
