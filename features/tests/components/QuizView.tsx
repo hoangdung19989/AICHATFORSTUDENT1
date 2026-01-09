@@ -8,8 +8,8 @@ import type { Quiz, TestSubject, TestGrade, TestType, Semester } from '../../../
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import TestResultsView from './TestResultsView';
 import Breadcrumb from '../../../components/common/Breadcrumb';
-import MathRenderer from '../../../components/common/MathRenderer'; // Import
-import { ArrowRightCircleIcon, ArrowLeftIcon, CheckCircleIcon, XCircleIcon, ClockIcon, ShieldCheckIcon } from '../../../components/icons';
+import MathRenderer from '../../../components/common/MathRenderer';
+import { ArrowRightCircleIcon, ArrowLeftIcon, CheckCircleIcon, ClockIcon, ExclamationTriangleIcon } from '../../../components/icons';
 
 interface QuizViewProps {
     subject: TestSubject;
@@ -33,16 +33,23 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
         setError(null);
         setShowResults(false);
         try {
+            // Đảm bảo truyền đúng thông tin để AI sinh đề
             const data = await generateQuiz(subject.name, grade.name, testType, semester);
+            if (!data || !data.questions || data.questions.length === 0) {
+                throw new Error("Dữ liệu đề thi không hợp lệ.");
+            }
             setQuizData(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi không xác định.');
+        } catch (err: any) {
+            console.error("Fetch Quiz Error:", err);
+            setError(err.message || 'Đã xảy ra lỗi khi tải đề thi từ AI.');
         } finally {
             setIsLoading(false);
         }
     }, [subject.name, grade.name, testType, semester]);
 
-    useEffect(() => { fetchQuiz(); }, [fetchQuiz]);
+    useEffect(() => { 
+        fetchQuiz(); 
+    }, [fetchQuiz]);
 
     const handleQuizFinish = useCallback(async (score: number, total: number) => {
         setFinalScore(score);
@@ -64,7 +71,7 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                         student_email: user.email
                     }
                 });
-            } catch (err) { console.error("Exception saving exam result:", err); }
+            } catch (err) { console.error("Lỗi lưu kết quả:", err); }
         }
     }, [user, profile, subject.name, grade.name, semester, testType]);
     
@@ -74,30 +81,50 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
         handleNextQuestion, handlePreviousQuestion, formatTime,
     } = useQuiz({ quizData, onQuizFinish: handleQuizFinish });
 
-    const handleRetake = () => { fetchQuiz(); };
-
     if (isLoading) {
         return (
-            <div>
+            <div className="max-w-4xl mx-auto p-10 text-center">
                 <Breadcrumb items={[{ label: 'Kiểm tra', onClick: onBackToSubjects }, { label: subject.name, onClick: onBack }, { label: testType.name }]} />
-                <LoadingSpinner text="Đang tải đề thi..." />
+                <div className="bg-white rounded-3xl p-12 shadow-xl border border-slate-100">
+                    <LoadingSpinner 
+                        text="AI đang soạn đề thi cho bạn..." 
+                        subText={`Môn ${subject.name} - Khối ${grade.name}`}
+                    />
+                    <p className="mt-4 text-slate-400 text-sm animate-pulse">Quá trình này có thể mất 10-15 giây...</p>
+                </div>
             </div>
         );
     }
     
-    if (error) return <div className="text-center p-8"><p className="text-red-500">{error}</p><button onClick={fetchQuiz} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">Thử lại</button></div>;
-
-    if (showResults && quizData) {
-        return <TestResultsView score={finalScore} totalQuestions={quizData.questions.length} onRetake={handleRetake} onBackToSubjects={onBackToSubjects} />;
+    if (error) {
+        return (
+            <div className="max-w-4xl mx-auto p-10 text-center animate-scale-in">
+                <div className="bg-white rounded-3xl p-12 shadow-xl border border-red-50">
+                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <ExclamationTriangleIcon className="h-10 w-10 text-red-600" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-2">Không thể tải đề thi</h3>
+                    <p className="text-slate-500 mb-8">{error}</p>
+                    <div className="flex gap-4 justify-center">
+                        <button onClick={fetchQuiz} className="px-8 py-3 bg-brand-primary text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-brand-primary-dark transition-all">Thử lại ngay</button>
+                        <button onClick={onBack} className="px-8 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">Quay lại</button>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
-    if (!quizData || !currentQuestion) return <p>Không có dữ liệu.</p>;
+    if (showResults && quizData) {
+        return <TestResultsView score={finalScore} totalQuestions={quizData.questions.length} onRetake={fetchQuiz} onBackToSubjects={onBackToSubjects} />;
+    }
+
+    if (!quizData || !currentQuestion) return null;
 
     const answeredCount = Object.keys(userAnswers).length;
     const total = quizData.questions.length;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="max-w-4xl mx-auto px-4 py-6 animate-slide-up">
              <Breadcrumb items={[
                     { label: 'Kiểm tra', onClick: onBackToSubjects },
                     { label: subject.name, onClick: onBack },
@@ -109,52 +136,60 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                 <div className="px-6 py-4 border-b bg-slate-50 flex justify-between items-center shrink-0">
                      <div>
                         <h1 className="text-lg font-bold text-slate-800 line-clamp-1">{quizData.title}</h1>
-                        <div className="flex items-center text-xs text-slate-500 font-bold gap-2">
-                            <span className="bg-slate-200 px-2 py-0.5 rounded text-slate-600">{formatTime(timeLeft)}</span>
-                            <span>Đã làm {answeredCount}/{total}</span>
+                        <div className="flex items-center text-xs text-slate-500 font-bold gap-4 mt-1">
+                            <span className="flex items-center bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                                <ClockIcon className="h-3 w-3 mr-1" /> {formatTime(timeLeft)}
+                            </span>
+                            <span>Tiến độ: {answeredCount}/{total} câu</span>
                         </div>
                      </div>
-                     <button onClick={() => { if(window.confirm("Nộp bài ngay?")) submitExam(); }} className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">Nộp bài</button>
+                     <button 
+                        onClick={() => { if(window.confirm("Bạn muốn nộp bài ngay?")) submitExam(); }} 
+                        className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95"
+                    >
+                        Nộp bài
+                    </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 sm:p-10 custom-scrollbar">
-                    {/* Section Header */}
+                <div className="flex-1 overflow-y-auto p-6 sm:p-10 custom-scrollbar bg-white">
                     {currentQuestion.section && (
-                        <div className="mb-4 text-xs font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 p-2 rounded w-fit">
+                        <div className="mb-4 text-xs font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 p-2 rounded w-fit border border-indigo-100">
                             {currentQuestion.section}
                         </div>
                     )}
 
-                    {/* Reading Passage */}
                     {currentQuestion.groupContent && (
-                        <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed text-sm">
-                            <div className="text-xs font-bold text-slate-400 uppercase mb-2 tracking-wider">Nội dung bài đọc</div>
+                        <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed text-sm shadow-inner">
+                            <div className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">Nội dung dữ liệu</div>
                             <MathRenderer content={currentQuestion.groupContent} />
                         </div>
                     )}
-
-                    {currentQuestion.image && <img src={currentQuestion.image} alt="Minh họa" className="max-h-64 object-contain rounded-lg border mb-6 mx-auto" />}
                     
                     <h2 className="text-xl font-bold text-slate-800 mb-8 leading-snug">
-                        <span className="text-brand-primary mr-2">Câu {currentQuestionIndex + 1}:</span>
+                        <span className="text-indigo-600 mr-2">Câu {currentQuestionIndex + 1}:</span>
                         <MathRenderer content={currentQuestion.question} />
                     </h2>
 
                     <div className="space-y-4">
                         {currentQuestion.options.map((option, index) => {
                             const isSelected = option === selectedAnswer;
+                            const label = String.fromCharCode(65 + index);
                             return (
                                  <button
                                     key={index}
                                     onClick={() => handleAnswerSelect(option)}
-                                    className={`w-full text-left flex items-start p-4 rounded-xl border-2 transition-all duration-200 ${
-                                        isSelected ? 'bg-indigo-50 border-brand-primary ring-1 ring-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'
+                                    className={`w-full text-left flex items-start p-5 rounded-2xl border-2 transition-all duration-200 group ${
+                                        isSelected 
+                                        ? 'bg-indigo-50 border-brand-primary ring-1 ring-indigo-200' 
+                                        : 'bg-white border-slate-100 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
                                 >
-                                    <span className={`w-8 h-8 flex items-center justify-center rounded-full font-bold mr-4 shrink-0 text-sm ${isSelected ? 'bg-brand-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        {String.fromCharCode(65 + index)}
+                                    <span className={`w-9 h-9 flex items-center justify-center rounded-xl font-black mr-4 shrink-0 transition-colors ${
+                                        isSelected ? 'bg-brand-primary text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'
+                                    }`}>
+                                        {label}
                                     </span>
-                                    <span className={`text-base pt-1 ${isSelected ? 'text-brand-primary font-bold' : 'text-slate-700'}`}>
+                                    <span className={`text-lg pt-1 flex-1 ${isSelected ? 'text-brand-primary font-bold' : 'text-slate-700 font-medium'}`}>
                                         <MathRenderer content={option} />
                                     </span>
                                 </button>
@@ -163,17 +198,34 @@ const QuizView: React.FC<QuizViewProps> = ({ subject, grade, testType, semester,
                     </div>
                 </div>
 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between shrink-0">
-                    <button onClick={handlePreviousQuestion} disabled={currentQuestionIndex === 0} className="px-4 py-2 rounded-lg text-slate-600 font-bold hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent text-sm transition-colors">
-                        <ArrowLeftIcon className="h-4 w-4 inline mr-1" /> Câu trước
+                <div className="px-6 py-5 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+                    <button 
+                        onClick={handlePreviousQuestion} 
+                        disabled={currentQuestionIndex === 0} 
+                        className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-200 disabled:opacity-30 transition-all flex items-center text-sm"
+                    >
+                        <ArrowLeftIcon className="h-4 w-4 mr-2" /> Câu trước
                     </button>
+                    
+                    <div className="hidden sm:flex gap-1">
+                        {quizData.questions.map((_, idx) => (
+                            <div key={idx} className={`w-2 h-2 rounded-full transition-all ${idx === currentQuestionIndex ? 'bg-indigo-600 scale-125' : userAnswers[idx] ? 'bg-indigo-200' : 'bg-slate-200'}`}></div>
+                        ))}
+                    </div>
+
                     {currentQuestionIndex < total - 1 ? (
-                        <button onClick={handleNextQuestion} className="px-6 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:bg-brand-primary-dark shadow-lg transition-all">
-                            Câu tiếp theo <ArrowRightCircleIcon className="h-4 w-4 inline ml-1" />
+                        <button 
+                            onClick={handleNextQuestion} 
+                            className="px-8 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:bg-brand-primary-dark shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center"
+                        >
+                            Tiếp tục <ArrowRightCircleIcon className="h-5 w-5 ml-2" />
                         </button>
                     ) : (
-                        <button onClick={() => submitExam()} className="px-6 py-2 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 shadow-lg transition-all">
-                            <CheckCircleIcon className="h-4 w-4 inline mr-1" /> Hoàn thành
+                        <button 
+                            onClick={() => submitExam()} 
+                            className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95 flex items-center animate-pulse"
+                        >
+                            <CheckCircleIcon className="h-5 w-5 mr-2" /> Hoàn thành bài thi
                         </button>
                     )}
                 </div>
