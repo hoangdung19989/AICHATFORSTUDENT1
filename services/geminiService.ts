@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Subject, Quiz, TestType, LearningPath, LessonPlan } from '../types/index';
 
-// Khởi tạo client AI - Luôn sử dụng process.env.API_KEY
+// Khởi tạo client AI - Luôn sử dụng process.env.API_KEY theo yêu cầu hệ thống
 const getAiClient = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
@@ -36,10 +36,22 @@ const quizSchema = {
           },
           correctAnswer: { type: Type.STRING, description: "Nội dung chính xác của đáp án đúng (phải khớp hoàn toàn với 1 trong các options)" },
           explanation: { type: Type.STRING, description: "Giải thích chi tiết tại sao đáp án đó đúng" },
-          section: { type: Type.STRING, description: "Phần của đề thi (tùy chọn)" },
-          groupContent: { type: Type.STRING, description: "Nội dung dùng chung cho nhóm câu hỏi (tùy chọn)" }
+          section: { type: Type.STRING, description: "Phần của đề thi (VD: I. LISTENING)" },
+          groupContent: { type: Type.STRING, description: "Nội dung dùng chung cho nhóm câu hỏi (VD: đoạn văn đọc hiểu)" }
         },
         required: ["question", "options", "correctAnswer", "explanation"]
+      }
+    },
+    essayQuestions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          question: { type: Type.STRING, description: "Nội dung câu hỏi tự luận" },
+          sampleAnswer: { type: Type.STRING, description: "Gợi ý đáp án cho câu hỏi tự luận" },
+          section: { type: Type.STRING, description: "Phần của đề thi (VD: II. WRITING)" }
+        },
+        required: ["question", "sampleAnswer"]
       }
     }
   },
@@ -77,20 +89,20 @@ export const generateQuiz = async (subjectName: string, gradeName: string, testT
     
     const parsedData = JSON.parse(resultText);
     
-    // Đảm bảo dữ liệu trả về luôn sạch sẽ
     return {
       title: parsedData.title || `${testType.name} ${subjectName}`,
       sourceSchool: parsedData.sourceSchool || "Hệ thống OnLuyen AI",
       timeLimit: parsedData.timeLimit || testType.duration,
-      questions: parsedData.questions.map((q: any) => ({
+      questions: (parsedData.questions || []).map((q: any) => ({
         ...q,
-        options: q.options.map((opt: string) => opt.replace(/^[A-D]\.\s*/, '').trim()),
-        correctAnswer: q.correctAnswer.replace(/^[A-D]\.\s*/, '').trim()
-      }))
+        options: (q.options || []).map((opt: string) => opt.replace(/^[A-D]\.\s*/, '').trim()),
+        correctAnswer: (q.correctAnswer || "").replace(/^[A-D]\.\s*/, '').trim()
+      })),
+      essayQuestions: parsedData.essayQuestions || []
     };
   } catch (err) {
     console.error("Lỗi generateQuiz:", err);
-    throw new Error("Không thể tạo đề thi lúc này. Vui lòng thử lại sau vài giây.");
+    throw new Error("Không thể tạo đề thi lúc này. Vui lòng thử lại.");
   }
 };
 
@@ -153,15 +165,23 @@ export const generatePracticeExercises = async (subjectName: string, gradeName: 
     }
   });
   
-  return JSON.parse(response.text || '{}');
+  const parsed = JSON.parse(response.text || '{}');
+  return {
+    ...parsed,
+    questions: (parsed.questions || []).map((q: any) => ({
+      ...q,
+      options: (q.options || []).map((opt: string) => opt.replace(/^[A-D]\.\s*/, '').trim()),
+      correctAnswer: (q.correctAnswer || "").replace(/^[A-D]\.\s*/, '').trim()
+    }))
+  };
 };
 
 /**
- * Các hàm hỗ trợ khác (Giữ cấu trúc tương tự)
+ * Tạo đề thi thử
  */
 export const generateMockExam = async (subjectName: string, gradeName: string): Promise<Quiz> => {
   const ai = getAiClient();
-  const prompt = `Tạo một đề thi thử vào lớp 10 môn ${subjectName} tiêu chuẩn.`;
+  const prompt = `Tạo một đề thi thử vào lớp 10 môn ${subjectName} tiêu chuẩn cho học sinh ${gradeName}.`;
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
@@ -170,14 +190,25 @@ export const generateMockExam = async (subjectName: string, gradeName: string): 
       responseSchema: quizSchema
     }
   });
-  return JSON.parse(response.text || '{}');
+  const parsed = JSON.parse(response.text || '{}');
+  return {
+    ...parsed,
+    questions: (parsed.questions || []).map((q: any) => ({
+      ...q,
+      options: (q.options || []).map((opt: string) => opt.replace(/^[A-D]\.\s*/, '').trim()),
+      correctAnswer: (q.correctAnswer || "").replace(/^[A-D]\.\s*/, '').trim()
+    }))
+  };
 };
 
+/**
+ * Số hóa đề thi từ file/ảnh
+ */
 export const parseExamDocument = async (base64Data: string, mimeType: string, textContent?: string): Promise<Quiz> => {
   const ai = getAiClient();
-  const parts: any[] = [{ text: "Hãy số hóa đề thi này sang định dạng JSON chuẩn." }];
+  const parts: any[] = [{ text: "Hãy số hóa đề thi này sang định dạng JSON chuẩn theo schema cung cấp. Chú ý bóc tách đúng câu hỏi, các lựa chọn A, B, C, D, đáp án đúng và giải thích." }];
   if (base64Data) parts.push({ inlineData: { data: base64Data, mimeType } });
-  if (textContent) parts.push({ text: `Nội dung văn bản: ${textContent}` });
+  if (textContent) parts.push({ text: `Nội dung văn bản trích xuất: ${textContent}` });
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -190,26 +221,38 @@ export const parseExamDocument = async (base64Data: string, mimeType: string, te
   return JSON.parse(response.text || '{}');
 };
 
+/**
+ * Tạo đề thi từ ma trận đặc tả
+ */
 export const generateTestFromMatrixDocument = async (subject: string, grade: string, base64Data: string, mimeType: string, mcCount: number, essayCount: number, textContent?: string): Promise<Quiz> => {
   const ai = getAiClient();
-  const parts: any[] = [{ text: `Dựa trên ma trận này, hãy tạo đề thi môn ${subject} lớp ${grade} gồm ${mcCount} câu trắc nghiệm và ${essayCount} câu tự luận.` }];
+  const prompt = `Dựa trên ma trận đặc tả này, hãy tạo đề thi môn ${subject} lớp ${grade} gồm đúng ${mcCount} câu trắc nghiệm và ${essayCount} câu tự luận. 
+  Bám sát tỷ lệ Nhận biết/Thông hiểu/Vận dụng có trong ma trận. Trả về JSON theo đúng schema.`;
+
+  const parts: any[] = [{ text: prompt }];
   if (base64Data) parts.push({ inlineData: { data: base64Data, mimeType } });
   if (textContent) parts.push({ text: `Nội dung ma trận: ${textContent}` });
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: { parts },
-    config: { responseMimeType: "application/json" }
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: quizSchema
+    }
   });
   return JSON.parse(response.text || '{}');
 };
 
+/**
+ * Soạn giáo án chuẩn 5512
+ */
 export const generateLessonPlan = async (subject: string, grade: string, topic: string, bookSeries: string, contextFiles: { data: string, mimeType: string }[], oldContentText?: string, appendixText?: string): Promise<LessonPlan> => {
   const ai = getAiClient();
-  const parts: any[] = [{ text: `Soạn giáo án 5512 môn ${subject} lớp ${grade}, bộ sách ${bookSeries}, bài: ${topic}.` }];
+  const parts: any[] = [{ text: `Soạn giáo án 5512 môn ${subject} lớp ${grade}, bộ sách ${bookSeries}, bài: ${topic}. Tích hợp năng lực số và các hoạt động giáo dục hiện đại.` }];
   contextFiles.forEach(f => parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
-  if (oldContentText) parts.push({ text: `Gợi ý nội dung: ${oldContentText}` });
-  if (appendixText) parts.push({ text: `Phụ lục đi kèm: ${appendixText}` });
+  if (oldContentText) parts.push({ text: `Gợi ý nội dung cũ: ${oldContentText}` });
+  if (appendixText) parts.push({ text: `Phụ lục đi kèm (YCCĐ): ${appendixText}` });
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",

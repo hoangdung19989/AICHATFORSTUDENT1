@@ -12,7 +12,8 @@ import {
     ArrowDownTrayIcon, 
     ArrowLeftIcon,
     DocumentTextIcon,
-    PrinterIcon
+    PrinterIcon,
+    ExclamationTriangleIcon
 } from '../../components/icons';
 // @ts-ignore
 import mammoth from 'https://esm.sh/mammoth';
@@ -35,8 +36,10 @@ const TestGenerator: React.FC = () => {
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setError(null);
 
         if (file.name.endsWith('.docx')) {
+            setIsLoading(true); // Fixed: ensure it shows loading while reading file
             const reader = new FileReader();
             reader.onload = async (ev) => {
                 const arrayBuffer = ev.target?.result as ArrayBuffer;
@@ -44,7 +47,9 @@ const TestGenerator: React.FC = () => {
                     const conv = await mammoth.extractRawText({ arrayBuffer });
                     setUploadedFile({ file, text: conv.value });
                 } catch (e) {
-                    alert("Lỗi đọc file Word.");
+                    setError("Lỗi đọc file Word. Hãy thử dùng định dạng PDF hoặc Ảnh.");
+                } finally {
+                  setIsLoading(false);
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -57,15 +62,26 @@ const TestGenerator: React.FC = () => {
         }
     };
 
+    const [isLoading, setIsLoading] = useState(false); // New state to avoid build errors
+
     const handleGenerate = async () => {
-        if (!uploadedFile) return;
+        if (!uploadedFile) { setError("Vui lòng tải lên ma trận."); return; }
         setIsGenerating(true);
+        setError(null);
         try {
             const base64 = uploadedFile.base64 || "";
             const mimeType = uploadedFile.file.type || 'application/pdf';
             const quiz = await generateTestFromMatrixDocument(subject, grade, base64, mimeType, mcCount, essayCount, uploadedFile.text);
+            
+            if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+              throw new Error("AI không thể tạo được câu hỏi từ ma trận này. Vui lòng kiểm tra lại nội dung ma trận.");
+            }
+            
             setResult(quiz);
-        } catch (err: any) { setError(err.message); }
+        } catch (err: any) { 
+          console.error("Test generation failed:", err);
+          setError(err.message || "Đã xảy ra lỗi khi tạo đề thi. Vui lòng thử lại."); 
+        }
         finally { setIsGenerating(false); }
     };
 
@@ -94,9 +110,6 @@ const TestGenerator: React.FC = () => {
             <body>
         `;
         const footer = "</body></html>";
-        
-        // Clean up HTML for Word: Remove Tailwind classes if they cause issues, but keeping simple styles inline is better
-        // Note: The structure inside #generated-test-content is already using inline styles for the most part
         const sourceHTML = header + content.innerHTML + footer;
         
         const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
@@ -114,7 +127,6 @@ const TestGenerator: React.FC = () => {
     if (result) {
         return (
             <div className="container mx-auto max-w-5xl py-8 animate-scale-in">
-                {/* Toolbar */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-4 justify-between items-center sticky top-4 z-50 no-print">
                     <button onClick={() => setResult(null)} className="flex items-center text-slate-500 font-bold hover:text-slate-800 transition-colors">
                         <ArrowLeftIcon className="h-5 w-5 mr-2" /> Tạo đề khác
@@ -129,7 +141,6 @@ const TestGenerator: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Preview Area - Designed to look like A4 Paper */}
                 <div className="bg-gray-200 p-4 md:p-10 rounded-3xl overflow-auto">
                     <div 
                         id="generated-test-content" 
@@ -142,7 +153,6 @@ const TestGenerator: React.FC = () => {
                             lineHeight: '1.4' 
                         }}
                     >
-                        {/* Exam Header */}
                         <table style={{ width: '100%', marginBottom: '20px', borderCollapse: 'collapse', border: 'none' }}>
                             <tbody>
                                 <tr>
@@ -165,10 +175,9 @@ const TestGenerator: React.FC = () => {
                             (Đề thi được biên soạn dựa trên Ma trận đặc tả: {uploadedFile?.file.name})
                         </div>
 
-                        {/* Part I: Multiple Choice */}
                         {result.questions && result.questions.length > 0 && (
                             <div style={{ marginBottom: '20px' }}>
-                                <h3 style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>I. PHẦN TRẮC NGHIỆM ({mcCount} câu)</h3>
+                                <h3 style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>I. PHẦN TRẮC NGHIỆM</h3>
                                 {result.questions.map((q, idx) => (
                                     <div key={idx} className="question-block" style={{ marginBottom: '12px', pageBreakInside: 'avoid' }}>
                                         <div style={{ display: 'flex', alignItems: 'baseline' }}>
@@ -187,10 +196,9 @@ const TestGenerator: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Part II: Essay */}
                         {result.essayQuestions && result.essayQuestions.length > 0 && (
                             <div style={{ marginBottom: '20px', marginTop: '20px' }}>
-                                <h3 style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>II. PHẦN TỰ LUẬN ({essayCount} câu)</h3>
+                                <h3 style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>II. PHẦN TỰ LUẬN</h3>
                                 {result.essayQuestions.map((q, idx) => (
                                     <div key={idx} className="essay-block" style={{ marginBottom: '15px', pageBreakInside: 'avoid' }}>
                                         <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>
@@ -198,7 +206,7 @@ const TestGenerator: React.FC = () => {
                                         </p>
                                         <p style={{ margin: 0 }}>{q.question}</p>
                                         <div style={{ minHeight: '100px', border: '1px dashed #ccc', marginTop: '10px', padding: '10px', fontSize: '11pt', color: '#666', fontStyle: 'italic' }}>
-                                            (Đáp án gợi ý: {q.sampleAnswer || 'Học sinh trình bày...'})
+                                            (Gợi ý: {q.sampleAnswer || 'Học sinh tự trình bày...'})
                                         </div>
                                     </div>
                                 ))}
@@ -206,19 +214,8 @@ const TestGenerator: React.FC = () => {
                         )}
 
                         <div style={{ textAlign: 'center', marginTop: '40px', fontWeight: 'bold' }}>--- HẾT ---</div>
-                        <div style={{ textAlign: 'center', fontStyle: 'italic', fontSize: '11pt' }}>Thí sinh không được sử dụng tài liệu. Cán bộ coi thi không giải thích gì thêm.</div>
                     </div>
                 </div>
-                
-                <style>{`
-                    @media print {
-                        .no-print, header, aside { display: none !important; }
-                        body { background: white; margin: 0; padding: 0; }
-                        .container { max-width: 100%; padding: 0; margin: 0; }
-                        .bg-gray-200 { background: white !important; padding: 0 !important; }
-                        #generated-test-content { box-shadow: none !important; border: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
-                    }
-                `}</style>
             </div>
         );
     }
@@ -229,6 +226,13 @@ const TestGenerator: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100">
                 <h1 className="text-3xl font-black mb-8 uppercase text-brand-blue">Tạo đề thi từ Ma trận</h1>
                 
+                {error && (
+                    <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100 flex items-start">
+                        <ExclamationTriangleIcon className="h-5 w-5 mr-3 mt-0.5 shrink-0" />
+                        <p className="text-sm font-bold">{error}</p>
+                    </div>
+                )}
+
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-8 flex items-start">
                     <div className="bg-blue-100 p-2 rounded-lg mr-3">
                         <DocumentTextIcon className="h-6 w-6 text-blue-600" />
@@ -236,7 +240,7 @@ const TestGenerator: React.FC = () => {
                     <div>
                         <h3 className="font-bold text-blue-800 text-sm">Hướng dẫn quan trọng</h3>
                         <p className="text-xs text-blue-700 mt-1">
-                            Tải lên ảnh hoặc file Word chứa <strong>Ma trận đặc tả</strong>. AI sẽ phân tích kỹ các mức độ (Nhận biết/Thông hiểu/Vận dụng) trong bảng để ra đề thi bám sát yêu cầu của bạn.
+                            Tải lên ảnh hoặc file Word chứa <strong>Ma trận đặc tả</strong>. AI sẽ phân tích kỹ các mức độ để ra đề thi phù hợp.
                         </p>
                     </div>
                 </div>
@@ -289,18 +293,12 @@ const TestGenerator: React.FC = () => {
 
                 <button 
                     onClick={handleGenerate} 
-                    disabled={!uploadedFile} 
-                    className="w-full py-5 bg-brand-blue text-white rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    disabled={!uploadedFile || isGenerating} 
+                    className="w-full py-5 bg-brand-blue text-white rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
                 >
                     <PencilSquareIcon className="h-6 w-6 mr-3" />
-                    PHÂN TÍCH MA TRẬN & TẠO ĐỀ
+                    {isGenerating ? "ĐANG XỬ LÝ..." : "PHÂN TÍCH MA TRẬN & TẠO ĐỀ"}
                 </button>
-                
-                {error && (
-                    <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl text-center font-bold border border-red-100">
-                        {error}
-                    </div>
-                )}
             </div>
         </div>
     );
