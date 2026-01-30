@@ -84,11 +84,14 @@ const ExamManager: React.FC = () => {
             setIsLoading(true); 
             try {
                 // @ts-ignore
-                const { default: mammoth } = await import('https://esm.sh/mammoth');
+                const mammothModule = await import('https://esm.sh/mammoth@1.6.0');
+                const mammoth = mammothModule.default || mammothModule;
+                
                 const arrayBuffer = await file.arrayBuffer();
                 const conv = await mammoth.extractRawText({ arrayBuffer });
                 setUploadedFile({ file, text: conv.value });
             } catch (e) { 
+                console.error(e);
                 alert("Lỗi đọc file Word."); 
                 setUploadedFile(null);
             } finally { setIsLoading(false); }

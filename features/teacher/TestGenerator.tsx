@@ -5,6 +5,7 @@ import { generateTestFromMatrixDocument } from '../../services/geminiService';
 import type { Quiz } from '../../types/index';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import MathRenderer from '../../components/common/MathRenderer';
 import { 
     PencilSquareIcon, 
     CloudArrowUpIcon, 
@@ -15,8 +16,6 @@ import {
     PrinterIcon,
     ExclamationTriangleIcon
 } from '../../components/icons';
-// @ts-ignore
-import mammoth from 'https://esm.sh/mammoth';
 
 const SUBJECTS_LIST = ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "GDCD"];
 const GRADES = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"];
@@ -29,6 +28,7 @@ const TestGenerator: React.FC = () => {
     const [essayCount, setEssayCount] = useState<number>(3);
     const [uploadedFile, setUploadedFile] = useState<{ file: File, base64?: string, text?: string } | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isLoadingFile, setIsLoadingFile] = useState(false); // Đổi tên state để rõ ràng hơn
     const [result, setResult] = useState<Quiz | null>(null);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,20 +39,21 @@ const TestGenerator: React.FC = () => {
         setError(null);
 
         if (file.name.endsWith('.docx')) {
-            setIsLoading(true); // Fixed: ensure it shows loading while reading file
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const arrayBuffer = ev.target?.result as ArrayBuffer;
-                try {
-                    const conv = await mammoth.extractRawText({ arrayBuffer });
-                    setUploadedFile({ file, text: conv.value });
-                } catch (e) {
-                    setError("Lỗi đọc file Word. Hãy thử dùng định dạng PDF hoặc Ảnh.");
-                } finally {
-                  setIsLoading(false);
-                }
-            };
-            reader.readAsArrayBuffer(file);
+            setIsLoadingFile(true);
+            try {
+                // @ts-ignore
+                const mammothModule = await import('https://esm.sh/mammoth@1.6.0');
+                const mammoth = mammothModule.default || mammothModule;
+                
+                const arrayBuffer = await file.arrayBuffer();
+                const conv = await mammoth.extractRawText({ arrayBuffer });
+                setUploadedFile({ file, text: conv.value });
+            } catch (e) {
+                console.error(e);
+                setError("Lỗi đọc file Word. Hãy thử dùng định dạng PDF hoặc Ảnh.");
+            } finally {
+                setIsLoadingFile(false);
+            }
         } else {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -61,8 +62,6 @@ const TestGenerator: React.FC = () => {
             };
         }
     };
-
-    const [isLoading, setIsLoading] = useState(false); // New state to avoid build errors
 
     const handleGenerate = async () => {
         if (!uploadedFile) { setError("Vui lòng tải lên ma trận."); return; }
@@ -182,12 +181,12 @@ const TestGenerator: React.FC = () => {
                                     <div key={idx} className="question-block" style={{ marginBottom: '12px', pageBreakInside: 'avoid' }}>
                                         <div style={{ display: 'flex', alignItems: 'baseline' }}>
                                             <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '5px' }}>Câu {idx + 1}:</span>
-                                            <span>{q.question}</span>
+                                            <span><MathRenderer content={q.question} /></span>
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', paddingLeft: '20px', marginTop: '5px' }}>
                                             {q.options.map((opt, oIdx) => (
                                                 <div key={oIdx} style={{ marginBottom: '2px' }}>
-                                                    <span style={{ fontWeight: 'bold' }}>{String.fromCharCode(65 + oIdx)}.</span> {opt.replace(/^[A-D]\.\s*/, '')}
+                                                    <span style={{ fontWeight: 'bold' }}>{String.fromCharCode(65 + oIdx)}.</span> <MathRenderer content={opt.replace(/^[A-D]\.\s*/, '')} />
                                                 </div>
                                             ))}
                                         </div>
@@ -204,9 +203,9 @@ const TestGenerator: React.FC = () => {
                                         <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>
                                             Câu {(result.questions?.length || 0) + idx + 1}:
                                         </p>
-                                        <p style={{ margin: 0 }}>{q.question}</p>
+                                        <p style={{ margin: 0 }}><MathRenderer content={q.question} /></p>
                                         <div style={{ minHeight: '100px', border: '1px dashed #ccc', marginTop: '10px', padding: '10px', fontSize: '11pt', color: '#666', fontStyle: 'italic' }}>
-                                            (Gợi ý: {q.sampleAnswer || 'Học sinh tự trình bày...'})
+                                            (Gợi ý: <MathRenderer content={q.sampleAnswer || 'Học sinh tự trình bày...'} />)
                                         </div>
                                     </div>
                                 ))}
@@ -272,11 +271,16 @@ const TestGenerator: React.FC = () => {
                 </div>
 
                 <div 
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => !isLoadingFile && fileInputRef.current?.click()}
                     className={`border-4 border-dashed rounded-3xl p-12 text-center cursor-pointer transition-all mb-8 ${uploadedFile ? 'border-green-400 bg-green-50' : 'border-slate-100 hover:bg-slate-50 hover:border-brand-blue'}`}
                 >
                     <input type="file" ref={fileInputRef} className="hidden" accept=".docx,.pdf,.png,.jpg,.jpeg" onChange={handleFileChange} />
-                    {uploadedFile ? (
+                    {isLoadingFile ? (
+                        <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-10 w-10 border-4 border-brand-blue border-t-transparent mb-3"></div>
+                            <p className="text-slate-500 font-bold">Đang đọc file...</p>
+                        </div>
+                    ) : uploadedFile ? (
                         <div>
                             <CheckCircleIcon className="h-10 w-10 text-green-500 mx-auto mb-2" />
                             <p className="text-green-700 font-bold">{uploadedFile.file.name}</p>
@@ -293,7 +297,7 @@ const TestGenerator: React.FC = () => {
 
                 <button 
                     onClick={handleGenerate} 
-                    disabled={!uploadedFile || isGenerating} 
+                    disabled={!uploadedFile || isGenerating || isLoadingFile} 
                     className="w-full py-5 bg-brand-blue text-white rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
                 >
                     <PencilSquareIcon className="h-6 w-6 mr-3" />
